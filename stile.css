@@ -473,6 +473,10 @@ main:focus { outline: none; }
 .cond { border: 0; padding: 0; margin: 0; display: grid; gap: 8px; }
 .cond legend { font-weight: 600; padding: 0; margin-bottom: 8px; }
 .cond .scelta-btn { padding: 8px 14px; font-size: .94rem; }
+/* il modo di studiare: tre risposte per domanda, la via di mezzo al centro */
+.scelte.modo { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.scelte.modo .scelta-btn { border-radius: var(--r-piccolo); text-align: left; padding: 10px 14px; line-height: 1.35; }
+@media (max-width: 640px) { .scelte.modo { grid-template-columns: minmax(0, 1fr); } }
 .cond-casa { margin-top: -8px; }
 .assaggi { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 22px; align-items: stretch; }
 .assaggio { display: flex; flex-direction: column; gap: 12px; padding: 18px; border: 1.5px solid var(--linea); border-radius: 16px; background: var(--foglio); min-width: 0; }
@@ -521,6 +525,16 @@ i.neutro { background: var(--neutro); }
 .cifre-gusti { display: flex; gap: 18px; font-size: .86rem; color: var(--tenue); margin-top: -6px; }
 .cifre-gusti b { color: var(--inchiostro); font-weight: 600; }
 .perche { display: grid; gap: 6px; max-width: 70ch; }
+/* lauree alla pari con la prima, e la laurea che avevi in mente */
+.nota-pari { max-width: 70ch; margin: -4px 0 14px; color: var(--tenue); }
+.nota-pari b { color: var(--inchiostro); }
+.etichetta.pari { flex: none; }
+.campo-idea { display: flex; align-items: center; gap: 8px; max-width: 560px; margin: 14px 0 16px; border: 1px solid var(--linea); border-radius: 999px; background: var(--foglio); padding: 0 16px; height: 48px; }
+.campo-idea svg { width: 18px; height: 18px; color: var(--lampone); flex: none; }
+.campo-idea input { border: 0; background: transparent; width: 100%; height: 100%; font: inherit; color: var(--inchiostro); outline: none; }
+.campo-idea:focus-within { border-color: var(--lampone); box-shadow: 0 0 0 3px var(--cipria); }
+#idea-risultati { display: grid; gap: 16px; }
+#idea-risultati .laurea .btn { justify-self: start; }
 .sottoclassi { margin: 0; padding-left: 1.1em; display: grid; gap: 6px; font-size: .94rem; }
 .sottoclassi li::marker { color: var(--lampone); }
 .primo-anno { max-width: 660px; }

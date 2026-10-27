@@ -15,24 +15,23 @@ const AMBITI_NOMI = {
   pol: 'società, politica e comunicazione', lin: 'lingue e culture straniere', let: 'letteratura e lingua italiana e classica',
   sto: 'storia, archeologia e beni culturali', fil: 'filosofia',
 };
-// otto famiglie per il ritratto e il grafico (24 ambiti sono troppi da leggere a colpo d'occhio)
+// gli stessi ambiti con un nome corto, per le frasi: quelli lunghi hanno virgole e «e» dentro, e in un elenco si confondono
+const AMBITI_BREVI = {
+  mat: 'matematica', sta: 'statistica', fis: 'fisica', inf: 'informatica', ele: 'elettronica', ind: 'ingegneria industriale',
+  civ: 'architettura', des: 'design', chi: 'chimica', bio: 'biologia', ter: 'scienze della Terra', agr: 'agraria',
+  med: 'medicina', mot: 'sport', psi: 'psicologia', edu: 'educazione', eco: 'economia', eaz: 'gestione aziendale', giu: 'diritto',
+  pol: 'scienze sociali', lin: 'lingue straniere', let: 'letteratura', sto: 'storia', fil: 'filosofia',
+};
+// otto famiglie per il titolo del profilo e il grafico (24 ambiti sono troppi da leggere a colpo d'occhio)
 const FAMIGLIE = [
-  { k: 'numeri', nome: 'Numeri e logica', ambiti: ['mat', 'sta', 'fis'], meno: 'i numeri e le dimostrazioni',
-    piace: 'Ti piace quando un problema ha una risposta che si può dimostrare: cerchi lo schema dietro le cose e non ti spaventa restare a lungo su un ragionamento.' },
-  { k: 'tecno', nome: 'Tecnologia e ingegneria', ambiti: ['inf', 'ele', 'ind'], meno: 'la tecnologia e le macchine',
-    piace: 'Ti attira far funzionare le cose: programmi, circuiti, motori. Ti piace vedere un’idea diventare qualcosa che si accende, si muove o si usa.' },
-  { k: 'progetto', nome: 'Progettare spazi e oggetti', ambiti: ['civ', 'des'], meno: 'il progetto di spazi, oggetti e immagini',
-    piace: 'Pensi con gli occhi e con le mani: spazi, oggetti, immagini. Ti piace dare forma alle cose e immaginare come cambiano la vita di chi le usa.' },
-  { k: 'natura', nome: 'Natura e scienze della vita', ambiti: ['chi', 'bio', 'ter', 'agr'], meno: 'il laboratorio e le scienze naturali',
-    piace: 'Ti incuriosisce come funzionano la materia e il mondo vivo: cellule, reazioni, piante, rocce. Ti piace osservare, misurare e arrivare al perché.' },
-  { k: 'salute', nome: 'Salute e corpo', ambiti: ['med', 'mot'], meno: 'la medicina e il corpo',
-    piace: 'Ti interessa il corpo umano: come funziona, come si cura, come si allena. E probabilmente ti piace l’idea di un lavoro che fa stare meglio qualcuno.' },
-  { k: 'persone', nome: 'Mente ed educazione', ambiti: ['psi', 'edu'], meno: 'la psicologia e l’educazione',
-    piace: 'Ti incuriosiscono le persone: come pensano, come imparano, perché fanno quello che fanno. Ascoltare e aiutare qualcuno a crescere ti viene naturale.' },
-  { k: 'societa', nome: 'Economia, diritto e società', ambiti: ['eco', 'eaz', 'giu', 'pol'], meno: 'economia, diritto e istituzioni',
-    piace: 'Ti interessa come funziona la società: soldi, regole, decisioni, potere. Ti piace capire chi decide cosa, e con quali conseguenze per tutti.' },
-  { k: 'culture', nome: 'Lingue, testi e storia', ambiti: ['lin', 'let', 'sto', 'fil'], meno: 'lingue, letteratura e storia',
-    piace: 'Ti attirano le parole e le storie: lingue, libri, idee, il passato. Ti piace leggere tra le righe e capire culture diverse dalla tua.' },
+  { k: 'numeri', nome: 'Numeri e logica', ambiti: ['mat', 'sta', 'fis'] },
+  { k: 'tecno', nome: 'Tecnologia e ingegneria', ambiti: ['inf', 'ele', 'ind'] },
+  { k: 'progetto', nome: 'Progettare spazi e oggetti', ambiti: ['civ', 'des'] },
+  { k: 'natura', nome: 'Natura e scienze della vita', ambiti: ['chi', 'bio', 'ter', 'agr'] },
+  { k: 'salute', nome: 'Salute e corpo', ambiti: ['med', 'mot'] },
+  { k: 'persone', nome: 'Mente ed educazione', ambiti: ['psi', 'edu'] },
+  { k: 'societa', nome: 'Economia, diritto e società', ambiti: ['eco', 'eaz', 'giu', 'pol'] },
+  { k: 'culture', nome: 'Lingue, testi e storia', ambiti: ['lin', 'let', 'sto', 'fil'] },
 ];
 // dodici situazioni da quattro attività: ogni ambito compare due volte come ambito principale (peso 1); alcune attività
 // toccano anche un secondo ambito (peso minore)
@@ -105,13 +104,33 @@ const LAVORO = { d: 'Tra dieci anni, una giornata di lavoro riuscita è una gior
   ['…ho preso decisioni, trattato, convinto qualcuno', { eaz: .6, giu: .5, eco: .4, pol: .4 }],
   ['…ho scoperto qualcosa di nuovo su come funziona la natura', { bio: .5, chi: .5, ter: .5, agr: .3, fis: .3 }],
   ['…ho scritto, tradotto o raccontato qualcosa', { let: .6, lin: .6, sto: .4, fil: .3, pol: .3 }]] };
-const STRADA = { d: 'E che tipo di laurea preferisci?', o: [
-  ['Una che porta dritta a un mestiere preciso (infermiere, architetta, farmacista…)'],
-  ['Una che apre molte strade, da scegliere più avanti'],
-  ['Non lo so ancora']] };
-// lauree che preparano a una professione precisa (spesso abilitanti): contano per la domanda qui sopra
+// il modo di studiare e di lavorare: tre domande sulla stessa schermata, ognuna con una via di mezzo. Non toccano i gusti:
+// servono a distinguere lauree con materie simili (Biologia e Biotecnologie, Matematica e Ingegneria, Lettere e Comunicazione).
+// Ogni opzione è [valore salvato, testo]; l'ordine è quello in cui si mostrano, con la via di mezzo al centro
+const MODO = [
+  { k: 'teoria', d: 'Davanti a una cosa nuova, cosa ti prende di più?', o: [[0, 'Capire perché funziona così'], [1, 'Tutte e due allo stesso modo'],
+    [2, 'Capire come usarla per risolvere un problema']] },
+  { k: 'persone', d: 'Nel lavoro che immagini, passi le giornate soprattutto…', o: [[0, 'Con le persone: ascoltare, curare, insegnare, convincere'],
+    [1, 'Un po’ con le persone, un po’ no'], [2, 'Con oggetti, dati, testi o progetti']] },
+  { k: 'strada', d: 'Che tipo di laurea preferisci?', o: [[0, 'Una che porta dritta a un mestiere preciso (infermiere, architetta, farmacista…)'],
+    [2, 'Non lo so ancora'], [1, 'Una che apre molte strade, da scegliere più avanti']] },
+];
+// lauree che preparano a una professione precisa (spesso abilitanti): contano per la domanda sulla strada
 const PROFESSIONALI = new Set(['L/SNT1', 'L/SNT2', 'L/SNT3', 'L/SNT4', 'LM-41', 'LM-46', 'LM-42', 'LM-13', 'LM-4 c.u.',
   'LM-85 bis', 'LMG/01', 'LMR/02', 'L-39', 'L-P01', 'L-P02', 'L-P03']);
+// come si studia e dove porta ogni laurea: [teoria −1 / applicazione +1, oggetti, dati e testi −1 / persone +1], 0 se sta
+// nel mezzo o dipende dal corso. È un giudizio nostro, non un dato dei piani: per questo pesa poco e serve solo a separare
+// lauree che le materie da sole non distinguono. Le classi che mancano valgono 0 e 0
+const COME = {
+  'L- Sc. Mat.': [0, -1], 'L-1': [0, 0], 'L-2': [1, -1], 'L-3': [0, 0], 'L-4': [1, -1], 'L-5': [-1, -1], 'L-6': [0, -1], 'L-7': [1, -1],
+  'L-8': [1, -1], 'L-9': [1, -1], 'L-10': [-1, 0], 'L-11': [0, 0], 'L-12': [1, 0], 'L-13': [-1, -1], 'L-14': [1, 0], 'L-15': [1, 1],
+  'L-16': [1, 0], 'L-17': [1, -1], 'L-18': [1, 0], 'L-19': [1, 1], 'L-20': [1, 0], 'L-21': [1, -1], 'L-22': [1, 1], 'L-23': [1, -1],
+  'L-24': [0, 1], 'L-25': [1, -1], 'L-26': [1, -1], 'L-27': [-1, -1], 'L-28': [1, -1], 'L-29': [1, -1], 'L-30': [-1, -1], 'L-31': [0, -1],
+  'L-32': [0, -1], 'L-33': [-1, -1], 'L-34': [0, -1], 'L-35': [-1, -1], 'L-36': [0, 0], 'L-37': [1, 1], 'L-38': [1, -1], 'L-39': [1, 1],
+  'L-40': [-1, 0], 'L-41': [0, -1], 'L-42': [-1, -1], 'L-43': [1, -1], 'L-P01': [1, -1], 'L-P02': [1, -1], 'L-P03': [1, -1],
+  'L/DS': [1, 0], 'L/GASTR': [1, 0], 'L/SNT1': [1, 1], 'L/SNT2': [1, 1], 'L/SNT3': [1, 0], 'L/SNT4': [1, 0], 'LM-13': [1, 0],
+  'LM-4 c.u.': [1, -1], 'LM-41': [1, 1], 'LM-42': [1, 0], 'LM-46': [1, 1], 'LM-85 bis': [1, 1], 'LMG/01': [0, 0], 'LMR/02': [1, -1],
+};
 // le quattro classi delle professioni sanitarie hanno quasi gli stessi settori: nel risultato stanno in una scheda sola
 const SANITARIE = new Set(['L/SNT1', 'L/SNT2', 'L/SNT3', 'L/SNT4']);
 const NOMI_CLASSI = {
@@ -136,7 +155,7 @@ const NOMI_CLASSI = {
   'LMR/02': 'Conservazione e restauro dei beni culturali',
 };
 const nomeClasse = cl => NOMI_CLASSI[cl.classe] || titoloCorso(cl.nome);
-const PARTI = [['Cosa ti attira', 0, 12], ['Il lavoro che immagini', 12, 14], ['Le tue condizioni', 14, 15], ['Alla cieca', 15, 17]];
+const PARTI = [['Cosa ti attira', 0, 12], ['Il lavoro e il modo di studiare', 12, 14], ['Le tue condizioni', 14, 15], ['Alla cieca', 15, 17]];
 const PASSI = 17, KM_VICINO = 60;
 const COND_BASE = { dove: 2, test: 1, inglese: 1, online: 0, ciclo: 1 };
 const ICONA_BUSSOLA = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="m16.2 7.8-1.8 5.4a2 2 0 0 1-1.3 1.3l-5.3 1.7 1.8-5.4a2 2 0 0 1 1.3-1.3z"/></svg>';
@@ -168,28 +187,34 @@ function vicino(c, cond) {
 let Q = leggi('quiz', null);
 function mescola(n) { const a = [...Array(n).keys()]; for (let i = n - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 function nuovoQuiz() {
-  Q = { passo: 0, ordine: SITUAZIONI.map(() => mescola(4)), scelte: SITUAZIONI.map(() => [null, null]), lavoro: null, strada: null,
+  Q = { passo: 0, ordine: SITUAZIONI.map(() => mescola(4)), scelte: SITUAZIONI.map(() => [null, null]), lavoro: null, strada: null, teoria: null, persone: null,
     ordineLavoro: mescola(LAVORO.o.length), cond: { ...COND_BASE }, assaggi: [null, null], ordineAssaggi: [mescola(3), mescola(3)] };
   salva('quiz', Q);
 }
-// un carattere per risposta: versione, 12 coppie (più, meno), lavoro, tipo di laurea, 5 condizioni, 2 assaggi (3 = nessuno, 9 = non mostrato)
+// un carattere per risposta: versione, 12 coppie (più, meno), lavoro, strada, teoria, persone, 5 condizioni, 2 assaggi
+// (3 = nessuno, 9 = non mostrato). La versione 1 non aveva teoria e persone: i link vecchi si leggono ancora, con la via di mezzo
 function codifica(q) {
   const c = q.cond;
-  return '1' + q.scelte.map(([b, w]) => `${b}${w}`).join('') + (q.lavoro ?? 9) + (q.strada ?? 2) + c.dove + c.test + c.inglese + c.online + c.ciclo
-    + q.assaggi.map(x => x ?? 9).join('');
+  return '2' + q.scelte.map(([b, w]) => `${b}${w}`).join('') + (q.lavoro ?? 9) + (q.strada ?? 2) + (q.teoria ?? 1) + (q.persone ?? 1)
+    + c.dove + c.test + c.inglese + c.online + c.ciclo + q.assaggi.map(x => x ?? 9).join('');
 }
 function decodifica(t) {
-  if (!/^1\d{33}$/.test(t || '')) return null;
+  if (!/^(1\d{33}|2\d{35})$/.test(t || '')) return null;
   const d = t.slice(1).split('').map(Number), scelte = [];
+  if (t[0] === '1') d.splice(26, 0, 1, 1);
   for (let k = 0; k < 12; k++) { const [b, w] = [d[2 * k], d[2 * k + 1]]; if (b > 3 || w > 3 || b === w) return null; scelte.push([b, w]); }
-  const lavoro = d[24] === 9 ? null : d[24], [dove, test, inglese, online, ciclo] = d.slice(26, 31);
-  return { scelte, lavoro, strada: d[25], cond: { dove, test, inglese, online, ciclo }, assaggi: d.slice(31, 33).map(x => x === 9 ? null : x) };
+  const lavoro = d[24] === 9 ? null : d[24], [dove, test, inglese, online, ciclo] = d.slice(28, 33);
+  if ([d[25], d[26], d[27]].some(x => x > 2)) return null;
+  return { scelte, lavoro, strada: d[25], teoria: d[26], persone: d[27], cond: { dove, test, inglese, online, ciclo }, assaggi: d.slice(33, 35).map(x => x === 9 ? null : x) };
 }
 
 /* ---------- calcolo ---------- */
-function gustiPerAmbito(r) {
+// i gusti da -1 a +1 per ambito. senza: una situazione da lasciare fuori, per misurare quanto il risultato dipende da una
+// sola risposta (vedi margini)
+function gustiPerAmbito(r, senza = -1) {
   const A = S.orientamento.ambiti, grezzo = Object.fromEntries(A.map(a => [a, 0])), peso = { ...grezzo };
   SITUAZIONI.forEach((sit, k) => {
+    if (k === senza) return;
     const [b, w] = r.scelte[k];
     sit.o.forEach(([, pesi], i) => { for (const [a, p] of Object.entries(pesi)) { peso[a] += p; if (i === b) grezzo[a] += p; if (i === w) grezzo[a] -= p; } });
   });
@@ -197,11 +222,28 @@ function gustiPerAmbito(r) {
   if (r.lavoro != null) LAVORO.o.forEach(([, pesi], i) => { for (const [a, p] of Object.entries(pesi)) { peso[a] += p; if (i === r.lavoro) grezzo[a] += p; } });
   return Object.fromEntries(A.map(a => [a, peso[a] ? Math.max(-1, Math.min(1, grezzo[a] / peso[a])) : 0]));
 }
-const SOGLIA = .3, BONUS_ASSAGGIO = .12;  // da qui in su un ambito «ti attira», da -SOGLIA in giù «l'hai scartato»
-function affinita(cl, s, strada) {
-  let v = 0; for (const a in s) v += (cl.quote[a] || 0) * s[a];
-  if (strada === 0 && PROFESSIONALI.has(cl.classe)) v += .08;
-  if (strada === 1 && !PROFESSIONALI.has(cl.classe)) v += .05;
+const SOGLIA = .3;  // da qui in su un ambito «ti attira», da -SOGLIA in giù «l'hai scartato»
+// i pesi sono tarati con gli studenti simulati di verifica/quiz-studenti.mjs: chi li cambia rilanci quella verifica
+const PESO_FORMA = .7, PESO_SCARTO = .4, PESO_COME = .05, PESO_STRADA = .04, MARGINE_MINIMO = .015, FORMA_ESTREMI = [.4, 1];
+const direzione = v => v === 0 ? -1 : v === 2 ? 1 : 0;  // le risposte sul modo: 0 e 2 sono i due estremi, 1 la via di mezzo
+function affinita(cl, s, r, forma = PESO_FORMA) {
+  // due misure insieme. La forma: il coseno tra quello che ti attira e le quote dei crediti premia le lauree che coprono i
+  // tuoi interessi nelle stesse proporzioni, anche quando sono miste (Comunicazione, Biotecnologie). La quantità: la parte
+  // dei crediti in ambiti che ti attirano premia le lauree concentrate su quello che ti attira di più. Da sola, la quantità
+  // favorisce le lauree fatte di un solo ambito; da sola, la forma esagera nell'altro verso, perché scegliere «di più» fra
+  // quattro attività dà il massimo anche a un interesse secondario (l'architetto che ama un po' il design finirebbe a
+  // Design). Poi tolgono punti i crediti negli ambiti scartati, e il modo di studiare e la strada spostano di poco
+  let dot = 0, nq = 0, np = 0, quanti = 0, scarto = 0;
+  for (const a in s) {
+    const q = cl.quote[a] || 0, p = Math.max(0, s[a]);
+    dot += q * p; nq += q * q; np += p * p; quanti += q * p;
+    if (s[a] < 0) scarto -= q * s[a];
+  }
+  let v = forma * (np && nq ? dot / Math.sqrt(nq * np) : 0) + (1 - forma) * quanti - PESO_SCARTO * scarto;
+  const [t, p] = COME[cl.classe] || [0, 0];
+  v += PESO_COME * (direzione(r.teoria) * t - direzione(r.persone) * p);
+  if (r.strada === 0 && PROFESSIONALI.has(cl.classe)) v += PESO_STRADA;
+  if (r.strada === 1 && !PROFESSIONALI.has(cl.classe)) v += PESO_STRADA;
   return v;
 }
 function gustiDellaClasse(cl, s) {
@@ -220,30 +262,96 @@ function voci(classi) {
     if (SANITARIE.has(x.cl.classe)) { if (sanitarie) { sanitarie.classi.push(x); continue; } sanitarie = { classi: [x], sanitarie: true }; out.push(sanitarie); }
     else out.push({ classi: [x] });
   }
-  out.forEach(v => { v.affinita = v.classi[0].affinita; v.campione = v.classi[0].cl.campione; });
+  out.forEach(v => {
+    v.affinita = v.classi[0].affinita; v.campione = v.classi[0].cl.campione;
+    if (v.classi[0].varianti) {
+      v.varianti = v.classi[0].varianti.map((_, k) => Math.max(...v.classi.map(x => x.varianti[k])));
+      v.estremi = v.classi[0].estremi.map((_, k) => Math.max(...v.classi.map(x => x.estremi[k])));
+    }
+  });
   return out;
 }
-function calcola(r) {
+// quanto è solida la classifica. Due lauree sono alla pari con la prima in due casi:
+// - il rumore: i punteggi rifatti dodici volte, ogni volta senza una delle situazioni. Lo scarto tipico della differenza
+//   fra una laurea e la prima (stima jackknife) è il margine sotto cui l'ordine potrebbe invertirsi cambiando una risposta;
+// - quello che le risposte non dicono: se due ambiti ti attirano entrambi al massimo (succede quando nelle loro situazioni
+//   non competono mai fra loro, come architettura e design), il quiz non sa quale preferisci, e la laurea che li mescola e
+//   quella concentrata su uno solo si scambiano di posto a seconda di quanto pesa la forma rispetto alla quantità. Se con
+//   la sola forma, o con poca forma, la laurea passa davanti alla prima, le due sono alla pari.
+// Le lauree alla pari con la prima, dall'alto, formano il gruppo di testa
+function margini(lista) {
+  const t = lista[0], n = t ? t.varianti.length : 0;
+  let testa = true;
+  lista.forEach((v, j) => {
+    const d = v.varianti.map((x, k) => t.varianti[k] - x), m = d.reduce((a, b) => a + b, 0) / n;
+    v.margine = Math.max(MARGINE_MINIMO, Math.sqrt((n - 1) / n * d.reduce((a, b) => a + (b - m) ** 2, 0)));
+    v.pari = j === 0 || t.affinita - v.affinita < v.margine || v.estremi.some((x, k) => x >= t.estremi[k]);
+    testa = testa && v.pari; v.inTesta = testa;
+  });
+}
+// ogni ambito è l'attività principale (peso 1) in due situazioni: dove, per dire quali scelte si confermano
+const APPARIZIONI = {};
+SITUAZIONI.forEach((sit, k) => sit.o.forEach(([, pesi], i) => { for (const a in pesi) if (pesi[a] === 1) (APPARIZIONI[a] = APPARIZIONI[a] || []).push([k, i]); }));
+// quanto è netto il profilo: la distanza fra le due aree che ti attirano di più e le due che ti attirano di meno, messa a
+// confronto con quella di 2.000 risposte date a caso (sempre le stesse). Dodici scelte forzate sono troppo poche per
+// misurare la coerenza di una persona (provato con gli studenti simulati: nessuna misura separa bene chi risponde a caso da
+// chi è solo un po' incostante); dire se il profilo si distingue dal caso, invece, si può. pct: la quota di risposte a caso
+// con un profilo meno netto. Sotto la metà il profilo non si distingue dal caso, e il risultato lo dice
+const nettezza = s => { const f = FAMIGLIE.map(f => f.ambiti.reduce((t, a) => t + s[a], 0) / f.ambiti.length).sort((x, y) => y - x); return f[0] + f[1] - f[6] - f[7]; };
+let NETTEZZE_CASO = null;
+function nitidezza(r, s) {
+  if (!NETTEZZE_CASO) {
+    // generatore con un seme fisso (mulberry32): le stesse risposte a caso a ogni visita, quindi lo stesso verdetto
+    let seme = 20261028;
+    const caso = n => { seme = (seme + 0x6D2B79F5) | 0; let x = Math.imul(seme ^ (seme >>> 15), 1 | seme); x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x; return Math.floor(((x ^ (x >>> 14)) >>> 0) / 4294967296 * n); };
+    NETTEZZE_CASO = Array.from({ length: 2000 }, () => nettezza(gustiPerAmbito({
+      scelte: SITUAZIONI.map(() => { const b = caso(4); return [b, (b + 1 + caso(3)) % 4]; }), lavoro: caso(LAVORO.o.length) }))).sort((x, y) => x - y);
+  }
+  const x = nettezza(s), sotto = NETTEZZE_CASO.findIndex(v => v >= x), pct = (sotto < 0 ? NETTEZZE_CASO.length : sotto) / NETTEZZE_CASO.length;
+  const voto = ([k, i]) => r.scelte[k][0] === i ? 1 : r.scelte[k][1] === i ? -1 : 0;
+  const coppie = Object.entries(APPARIZIONI).map(([a, [x1, y1]]) => [a, voto(x1), voto(y1)]);
+  return { pct, livello: pct >= .8 ? 'alta' : pct >= .5 ? 'media' : 'bassa',
+    confermati: coppie.filter(([, x1, y1]) => x1 === y1 && x1 !== 0).map(([a, x1]) => [a, x1]),  // scelto, o scartato, tutte e due le volte
+    contraddetti: coppie.filter(([, x1, y1]) => x1 * y1 === -1).map(([a]) => a) };             // scelto una volta e scartato l'altra
+}
+function calcola(r, opz = {}) {
   const s = gustiPerAmbito(r), O = S.orientamento;
+  const assaggiati = r.assaggi.some(x => x != null && x <= 2);
+  const varianti = opz.incertezza || assaggiati ? SITUAZIONI.map((_, k) => gustiPerAmbito(r, k)) : null;
   const tutte = O.classi.map(cl => {
     const corsi = corsiDellaClasse(cl), adatti = corsi.filter(c => corsoAdatto(c, r.cond));
     let escluso = '';
     if (!r.cond.ciclo && cl.tipo === 'ciclo unico') escluso = 'è a ciclo unico (5 o 6 anni)';
     else if (corsi.length && !adatti.length) escluso = !r.cond.test && corsi.every(c => (c.accesso || '').startsWith('programmato')) ? 'tutti i corsi sono a numero programmato'
       : !r.cond.inglese && corsi.every(c => c.lingua === 'Inglese') ? 'tutti i corsi sono in inglese' : 'nessun corso rispetta le condizioni che hai scelto';
-    return { cl, corsi, adatti, escluso, affinita: affinita(cl, s, r.strada) };
+    return { cl, corsi, adatti, escluso, affinita: affinita(cl, s, r), varianti: varianti && varianti.map(sv => affinita(cl, sv, r)),
+      estremi: varianti && [affinita(cl, s, r, FORMA_ESTREMI[0]), affinita(cl, s, r, FORMA_ESTREMI[1])] };
   }).sort((a, b) => b.affinita - a.affinita);
   const base = voci(tutte.filter(x => !x.escluso && x.adatti.length));
-  // assaggi: il primo anno delle voci 1-3 e 4-6. Scegliere un primo anno guardando solo gli esami è un segnale forte:
-  // la laurea scelta guadagna BONUS_ASSAGGIO e può superare quelle che la precedevano di poco, anche nel primo gruppo
+  if (varianti && base.length) margini(base);
+  // assaggi: il primo anno delle voci 1-3 e 4-6. Scegliere un primo anno guardando solo gli esami decide fra lauree alla
+  // pari: quella scelta passa in testa se era alla pari con la prima, altrimenti guadagna il suo margine di incertezza e
+  // supera solo quelle che la precedevano di poco, non quelle davvero più vicine
   const giri = [base.slice(0, 3), base.slice(3, 6)].map(g => g.filter(v => v.campione));
+  // il secondo giro (lauree 4-6) non scavalca la laurea scelta nel primo, che hai preferito fra le tre più vicine
   const scelte = new Set();
-  giri.forEach((g, k) => { const p = r.assaggi[k]; if (p != null && p <= 2 && g[p]) { scelte.add(g[p]); g[p].affinita += BONUS_ASSAGGIO; } });
+  let tetto = Infinity;
+  giri.forEach((g, k) => {
+    const p = r.assaggi[k], v = p != null && p <= 2 && g[p];
+    if (!v) return;
+    scelte.add(v);
+    const su = Math.min(v.pari && v !== base[0] ? base[0].affinita - v.affinita + 1e-6 : v.margine, tetto - 1e-6 - v.affinita);
+    v.affinita += su; v.varianti = v.varianti.map(x => x + su); v.estremi = v.estremi.map(x => x + su);
+    tetto = v.affinita;
+  });
   const finale = base.slice().sort((a, b) => b.affinita - a.affinita);
+  if (varianti && finale.length) margini(finale);
   const fam = FAMIGLIE.map(f => ({ ...f, v: f.ambiti.reduce((t, a) => t + s[a], 0) / f.ambiti.length })).sort((a, b) => b.v - a.v);
-  return { s, fam, tutte, voci: finale, giri, scelte };
+  return { s, fam, tutte, voci: finale, giri, scelte, nitidezza: nitidezza(r, s) };
 }
-function forma(fam) {
+function forma(fam, R) {
+  // un profilo che non si distingue da risposte date a caso non ha una forma: il risultato lo dice invece di inventarla
+  if (R && R.nitidezza.livello === 'bassa') return 'piatto';
   const v = fam.map(f => f.v);
   if (v[0] < .2 || v[0] - v[7] < .35) return 'piatto';
   if (v[0] - v[1] >= .25) return 'netto';
@@ -259,7 +367,7 @@ function vistaQuiz() {
   if (p < 0 || p == null || Q.fatto) return introQuiz();
   if (p < 12) return schermataSituazione(p);
   if (p === 12) return schermataScelta(LAVORO, 'lavoro', p);
-  if (p === 13) return schermataScelta(STRADA, 'strada', p);
+  if (p === 13) return schermataModo();
   if (p === 14) return schermataCondizioni();
   return schermataAssaggio(p - 15);
 }
@@ -272,7 +380,7 @@ function introQuiz() {
     <p class="sotto">Un quiz di 5 minuti che non ti chiede «ti piace la matematica?». Scegli tra situazioni concrete, poi confrontiamo le tue risposte con quello che si studia davvero in ogni laurea: i crediti degli esami di ${fmt(n)} corsi triennali e a ciclo unico.</p>
     <ol class="quiz-tappe">
       <li><b>Cosa ti attira.</b> Dodici situazioni: in ognuna scegli l’attività che ti attira di più e quella che ti attira di meno.</li>
-      <li><b>Il lavoro che immagini e le tue condizioni.</b> Che giornata vorresti tra dieci anni, se ti va bene un test d’ingresso, quanto sei disposto a spostarti.</li>
+      <li><b>Il lavoro, il modo di studiare e le tue condizioni.</b> Che giornata vorresti tra dieci anni, se ti piace di più capire o applicare, se ti va bene un test d’ingresso, quanto sei disposto a spostarti.</li>
       <li><b>Alla cieca.</b> Ti mostriamo il primo anno vero di sei lauree vicine al tuo profilo, senza dirti quali sono: scegli solo guardando gli esami.</li>
     </ol>
     <div class="quiz-azioni">
@@ -313,8 +421,19 @@ function schermataScelta(dom, campo, p) {
   return `<div class="colonna quiz">${barraQuiz(p)}
     <h1 class="quiz-domanda" tabindex="-1">${esc(dom.d)}</h1>
     <p class="quiz-istruzione">Scegline una.</p>
-    <div class="opzioni${campo === 'strada' ? ' una-colonna' : ''}">${ordine.map(i => `<button type="button" class="opzione" data-q="${campo}" data-i="${i}"${Q[campo] === i ? ' data-stato="scelta"' : ''}><span>${esc(dom.o[i][0])}</span></button>`).join('')}</div>
+    <div class="opzioni">${ordine.map(i => `<button type="button" class="opzione" data-q="${campo}" data-i="${i}"${Q[campo] === i ? ' data-stato="scelta"' : ''}><span>${esc(dom.o[i][0])}</span></button>`).join('')}</div>
     ${navQuiz(Q[campo] != null)}
+  </div>`;
+}
+function schermataModo() {
+  const pronte = MODO.every(m => Q[m.k] != null);
+  return `<div class="colonna quiz">${barraQuiz(13)}
+    <h1 class="quiz-domanda" tabindex="-1">Come ti piace imparare e lavorare?</h1>
+    <p class="quiz-istruzione">Tre domande veloci. Servono a distinguere lauree che hanno materie simili ma si studiano in modo diverso.</p>
+    <div class="condizioni">${MODO.map(m => `<fieldset class="cond"><legend>${esc(m.d)}</legend><div class="scelte modo">${m.o.map(([v, testo]) =>
+      `<button type="button" class="scelta-btn" data-q="modo" data-k="${m.k}" data-v="${v}" aria-pressed="${Q[m.k] === v}">${esc(testo)}</button>`).join('')}</div></fieldset>`).join('')}
+    </div>
+    ${navQuiz(pronte, 'Continua')}
   </div>`;
 }
 function gruppoCond(k, titolo, scelte, nota) {
@@ -361,43 +480,43 @@ function vistaProfilo(codice) {
   if (!S.orientamento) return '<div class="colonna caricamento">Calcolo il tuo profilo…</div>';
   const r = decodifica(codice);
   if (!r) return `<div class="colonna vuoto"><b>Questo link al profilo non è valido.</b><span>Forse è stato copiato a metà.</span><a class="btn primario" href="#quiz">Fai il quiz</a></div>`;
-  const R = calcola(r), f = forma(R.fam), [f1, f2] = R.fam, ultima = R.fam[7];
+  const R = calcola(r, { incertezza: true }), f = forma(R.fam, R), [f1, f2] = R.fam;
+  profiloAperto = { codice, r, R };
   const titolo = f === 'netto' ? esc(f1.nome) : f === 'due' ? `${esc(f1.nome)} <span class="piu-titolo">+</span> ${esc(f2.nome)}` : f === 'ampio' ? 'Curiosità a tutto campo' : 'Un profilo ancora da scoprire';
-  const ritratto = [];
-  if (f === 'piatto') ritratto.push('Le tue risposte sono molto equilibrate: nessun tipo di attività spicca davvero sugli altri. Non è un difetto, ma vuol dire che il quiz può dirti meno del solito. Prendi le lauree qui sotto come punti di partenza da esplorare, e prova a guardare i piani di studio di quelle che ti incuriosiscono.');
-  else {
-    ritratto.push(f1.piace);
-    const min = t => t.charAt(0).toLowerCase() + t.slice(1);
-    if (f === 'due') ritratto.push(`E poi c’è l’altra metà: ${min(f2.piace)}`);
-    if (f === 'ampio') ritratto.push(`Ma non è l’unica cosa: ${min(f2.piace)} Anche ${min(R.fam[2].nome)} ti incuriosisce.`);
-    if (f === 'due') {
-      const ponte = R.voci.filter(v => !v.sanitarie).map(v => v.classi[0].cl).filter(cl => quotaFamiglia(cl, f1) >= .15 && quotaFamiglia(cl, f2) >= .15).slice(0, 3);
-      if (ponte.length) ritratto.push(`Le due cose si incontrano in lauree come ${elenco(ponte.map(nomeClasse))}.`);
-    }
-    if (ultima.v <= -SOGLIA) ritratto.push(`Ti attirano poco ${ultima.meno}: ne abbiamo tenuto conto.`);
-  }
   if (!R.voci.length) return `<div class="colonna vuoto"><b>Nessuna laurea rispetta tutte le condizioni che hai scelto.</b><span>Prova ad accettare i corsi a numero programmato o quelli in inglese.</span><a class="btn primario" href="#quiz" data-q="rifai">Rifai il quiz</a></div>`;
-  const prime = R.voci.slice(0, 5), restanti = R.voci.slice(5, 15);
-  const sorpresa = restanti.find(v => !v.sanitarie && v.classi[0].corsi.length < 30 && v.affinita > 0 && v.affinita >= .5 * prime[0]?.affinita);
+  // in testa le lauree alla pari con la prima (anche più di cinque, fino a otto), poi le altre fino a cinque
+  const testa = R.voci.filter(v => v.inTesta).length, prime = R.voci.slice(0, Math.max(5, Math.min(testa, 8))), restanti = R.voci.slice(prime.length, 15);
+  const sorpresa = restanti.find(v => !v.sanitarie && v.classi[0].corsi.length < 30 && v.affinita > 0 && v.affinita >= .5 * prime[0].affinita);
   const mostrate = new Set(prime.flatMap(v => v.classi.map(x => x.cl)));
   const fuori = [];
   for (const x of R.tutte.slice(0, 10)) {
     if (!x.escluso || mostrate.has(x.cl) || fuori.length >= 3) continue;
     if (SANITARIE.has(x.cl.classe)) { if (fuori.some(y => y.sanitarie)) continue; fuori.push({ ...x, sanitarie: true }); } else fuori.push(x);
   }
+  const NUMERI = ['', 'una', 'due', 'tre', 'quattro', 'cinque', 'sei', 'sette', 'otto'];
+  const notaTesta = testa >= 2
+    ? `<p class="nota-pari"><b>Le prime ${NUMERI[testa]} sono alla pari.</b> La differenza fra loro è più piccola di quanto cambierebbe il risultato togliendo una sola delle tue risposte: guardale tutte allo stesso modo.</p>`
+    : `<p class="nota-pari"><b>La prima si stacca dalle altre</b> più di quanto cambierebbe il risultato togliendo una sola delle tue risposte.</p>`;
   return `<div class="colonna pagina-profilo">
     <nav class="briciole" aria-label="Percorso"><a href="#quiz">Quiz</a><span>/</span><span>Il tuo profilo</span></nav>
     <header class="profilo-testa">
       <p class="eyebrow-profilo">Il tuo profilo</p>
       <h1 tabindex="-1">${titolo}</h1>
-      <div class="ritratto">${ritratto.map(t => `<p>${esc(t)}</p>`).join('')}</div>
+      <div class="ritratto">${ritrattoDi(r, R, f).map(t => `<p>${t}</p>`).join('')}</div>
     </header>
     ${graficoFamiglie(R.fam)}
     <section class="sezione">
       <h2>Le lauree più vicine a te <small>su ${fmt(R.tutte.filter(x => !x.escluso && x.adatti.length).length)} tipi di laurea che rispettano le tue condizioni</small></h2>
+      ${notaTesta}
       ${legendaGusti()}
       ${S.casa ? '' : `<div class="chiedi-casa">${campoCasa()}<span class="tenue piccolo">Scrivi da dove parti: in ogni laurea ti mostriamo i corsi più vicini.</span></div>`}
-      <div class="lauree">${prime.map((v, k) => schedaLaurea(v, k + 1, R, r)).join('')}</div>
+      <div class="lauree">${prime.map((v, k) => schedaLaurea(v, v.inTesta ? 1 : k + 1, R, r)).join('')}</div>
+    </section>
+    <section class="sezione idea">
+      <h2>Avevi già in mente una laurea?</h2>
+      <p class="tenue">Scrivila: ti diciamo quanto il suo piano degli esami somiglia ai gusti che sono venuti fuori dal quiz.</p>
+      <label class="campo-idea">${ICONA_CERCA}<input id="idea-laurea" type="search" placeholder="Per esempio Medicina, Ingegneria, Psicologia" autocomplete="off" aria-label="La laurea che avevi in mente"></label>
+      <div id="idea-risultati" aria-live="polite"></div>
     </section>
     ${sorpresa ? `<section class="sezione"><h2>Ci avevi pensato?</h2><p class="tenue" style="margin-bottom:14px;max-width:62ch">Una laurea con pochi corsi in Italia, che in pochi conoscono, ma che somiglia al tuo profilo più di tante altre.</p><div class="lauree">${schedaLaurea(sorpresa, null, R, r)}</div></section>` : ''}
     ${fuori.length ? `<section class="sezione"><h2>Se cambiassi idea sulle condizioni</h2><ul class="fuori">${fuori.map(x => `<li><b>${esc(x.sanitarie ? 'Le professioni sanitarie' : nomeClasse(x.cl))}</b> ${x.sanitarie ? 'sarebbero' : 'sarebbe'} tra le lauree più vicine al tuo profilo, ma ${esc(x.escluso)}.</li>`).join('')}</ul></section>` : ''}
@@ -418,17 +537,89 @@ function vistaProfilo(codice) {
     <details class="metodo sezione">
       <summary>Come abbiamo calcolato il risultato</summary>
       <ul>
-        <li>Le dodici situazioni coprono 24 ambiti di studio, ognuno almeno due volte. Ogni volta che scegli un’attività come «di più» l’ambito sale, come «di meno» scende. Il lavoro che immagini conta un po’ meno.</li>
+        <li>Le dodici situazioni coprono 24 ambiti di studio, ognuno due volte. Ogni volta che scegli un’attività come «di più» l’ambito sale, come «di meno» scende. Il lavoro che immagini conta un po’ meno.</li>
         <li>Per ogni tipo di laurea (la classe del Ministero, per esempio L-24) sappiamo quanta parte dei crediti obbligatori è in ogni ambito: l’abbiamo calcolato dai settori scientifici degli esami nei piani di ${fmt(S.orientamento.classi.reduce((t, c) => t + c.conPiano, 0))} corsi.</li>
-        <li>L’affinità è la media dei tuoi gusti pesata sui crediti: una laurea sale se gran parte dei suoi esami è in ambiti che ti attirano, scende se molti sono in ambiti che hai scartato.</li>
-        <li>Nell’assaggio alla cieca la laurea di cui hai scelto il primo anno guadagna punti: può superare quelle che la precedevano di poco.</li>
+        <li>La vicinanza mette insieme due cose: quanto la forma dei tuoi gusti somiglia a quella della laurea (anche quando la laurea mescola più ambiti, come Comunicazione o Biotecnologie) e quanta parte dei suoi crediti è in ambiti che ti attirano. Tolgono punti i crediti in ambiti che hai scartato.</li>
+        <li>Le domande sul modo di studiare spostano di poco. Per ogni laurea abbiamo indicato noi se è più teorica o più applicata e se porta a lavorare con le persone: è un giudizio nostro, non un dato, e serve solo a separare lauree con materie simili.</li>
+        <li>Rifacciamo il calcolo dodici volte, togliendo ogni volta una delle situazioni: due lauree la cui differenza sta dentro quelle variazioni sono «alla pari». Nell’assaggio alla cieca la laurea scelta guadagna proprio quel margine: supera quelle con cui era alla pari, non quelle davvero più vicine a te.</li>
+        <li>Per dire quanto è netto il profilo confrontiamo la distanza fra le aree che ti attirano di più e quelle che ti attirano di meno con quella di 2.000 serie di risposte date a caso.</li>
+        <li>Abbiamo provato il calcolo con 26 studenti simulati, di cui sapevamo quale laurea cercare e che rispondevano con qualche incertezza, come le persone vere: la laurea giusta è finita tra le prime tre in circa 9 casi su 10. Sono simulazioni, non persone vere: servono a scoprire errori nel calcolo, non a garantire il risultato.</li>
         <li>Non usiamo i voti: dicono quanto vai bene oggi in una materia, non quanto ti piacerà studiarla. È un aiuto per orientarsi, non un test psicologico.</li>
       </ul>
       <details class="ambiti"><summary>I tuoi 24 ambiti</summary>${tabellaAmbiti(R.s)}</details>
     </details>
   </div>`;
 }
-const elenco = xs => xs.length < 2 ? (xs[0] || '') : xs.slice(0, -1).join(', ') + ' e ' + xs[xs.length - 1];
+let profiloAperto = null;
+// il ritratto: invece di frasi che descrivono una personalità, quello che hai scelto davvero. Le frasi sono già in HTML
+function ritrattoDi(r, R, f) {
+  const N = R.nitidezza, frasi = [], s = R.s;
+  const testo = (k, i) => `«${esc(SITUAZIONI[k].o[i][0])}»`;
+  const primario = (k, i) => Object.keys(SITUAZIONI[k].o[i][1]).find(a => SITUAZIONI[k].o[i][1][a] === 1);
+  const nomi = as => elenco(as.map(a => AMBITI_BREVI[a]));
+  if (N.livello === 'bassa') frasi.push('Le tue risposte non disegnano un profilo più netto di quello che darebbe la maggior parte delle risposte date a caso, quindi il quiz può dirti poco. Non è un difetto: forse ti interessano tante cose allo stesso modo, o queste situazioni non ti hanno detto molto. Prendi le lauree qui sotto come spunti da esplorare, e guarda i piani di studio di quelle che ti incuriosiscono.');
+  const piace = Object.keys(s).filter(a => s[a] >= SOGLIA).sort((a, b) => s[b] - s[a]).slice(0, 3);
+  if (piace.length) {
+    const esempi = [], sempre = N.confermati.filter(([a, x]) => x > 0 && piace.includes(a)).map(([a]) => a);
+    r.scelte.forEach(([b], k) => { if (piace.includes(primario(k, b)) && esempi.length < 2) esempi.push(testo(k, b)); });
+    const quando = sempre.length === piace.length ? ', tutte e due le volte che te le abbiamo proposte'
+      : sempre.length ? ` (quelle di ${esc(nomi(sempre))} tutte e due le volte che te le abbiamo proposte)` : '';
+    frasi.push(`Hai preferito più spesso le attività di ${esc(nomi(piace))}${quando}${esempi.length ? `: per esempio ${elenco(esempi)}` : ''}.`);
+  }
+  const scarta = Object.keys(s).filter(a => s[a] <= -SOGLIA).sort((a, b) => s[a] - s[b]).slice(0, 3);
+  if (scarta.length) {
+    const esempio = r.scelte.map(([, w], k) => scarta.includes(primario(k, w)) ? testo(k, w) : null).find(Boolean);
+    frasi.push(`Hai messo invece tra le meno attraenti le attività di ${esc(nomi(scarta))}${esempio ? `, come ${esempio}` : ''}.`);
+  }
+  const modo = [
+    r.teoria === 0 ? 'ti interessa di più capire perché le cose funzionano' : r.teoria === 2 ? 'ti interessa di più usare quello che sai per risolvere problemi concreti' : '',
+    r.persone === 0 ? 'ti vedi a lavorare soprattutto con le persone' : r.persone === 2 ? 'ti vedi a lavorare soprattutto con oggetti, dati, testi o progetti' : '',
+    r.strada === 0 ? 'preferisci una laurea che porta a un mestiere preciso' : r.strada === 1 ? 'preferisci una laurea che apre molte strade' : '',
+  ].filter(Boolean);
+  frasi.push([r.lavoro != null ? `Tra dieci anni ti immagini una giornata in cui ${esc(LAVORO.o[r.lavoro][0].replace(/^…ho /, 'hai '))}.` : '',
+    modo.length ? maiuscola(elenco(modo)) + '.' : ''].filter(Boolean).join(' '));
+  if (f === 'due') {
+    const ponte = R.voci.filter(v => !v.sanitarie).map(v => v.classi[0].cl).filter(cl => quotaFamiglia(cl, R.fam[0]) >= .15 && quotaFamiglia(cl, R.fam[1]) >= .15).slice(0, 3);
+    if (ponte.length) frasi.push(`Le tue due aree si incontrano in lauree come ${elenco(ponte.map(cl => `«${esc(nomeClasse(cl))}»`))}.`);
+  }
+  if (N.contraddetti.length >= 3) frasi.push(`Alcune attività le hai scelte una volta e scartate l’altra (quelle di ${esc(nomi(N.contraddetti.slice(0, 3)))}): su quegli ambiti il quiz è meno sicuro.`);
+  if (N.livello !== 'bassa') frasi.push(N.pct >= .995 ? 'Il tuo profilo è più netto di tutte le 2.000 serie di risposte date a caso con cui l’abbiamo confrontato.'
+    : `Il tuo profilo è più netto di quello che darebbero ${Math.round(100 * N.pct)} serie di risposte date a caso su 100${N.livello === 'media' ? ': abbastanza per orientarti, non per decidere' : ''}.`);
+  return frasi.filter(Boolean);
+}
+// «Avevi già in mente una laurea?»: si cerca fra i nomi dei corsi, poi si mostra dove sta la classe nella tua classifica
+function risultatiIdea(q) {
+  const P = profiloAperto; if (!P) return '';
+  const parole = norma(q).split(' ').filter(w => w.length >= 3 && !VUOTE.has(w));
+  if (!parole.length) return '';
+  const conta = new Map();
+  for (const c of S.corsi) {
+    if (c.fuori) continue;
+    const n = ' ' + norma(`${c.nome} ${c.nomeClasse || ''} ${NOMI_CLASSI[c.classe] || ''}`);
+    if (parole.every(w => n.includes(' ' + w))) conta.set(`${c.classe}|${c.tipo}`, (conta.get(`${c.classe}|${c.tipo}`) || 0) + 1);
+  }
+  const trovate = P.R.tutte.filter(x => conta.has(`${x.cl.classe}|${x.cl.tipo}`)).sort((a, b) => conta.get(`${b.cl.classe}|${b.cl.tipo}`) - conta.get(`${a.cl.classe}|${a.cl.tipo}`)).slice(0, 3);
+  if (!trovate.length) return [...conta.keys()].some(k => k.endsWith('|magistrale'))
+    ? '<p class="nota">È una laurea magistrale, che si sceglie dopo la triennale: il quiz confronta le lauree triennali e a ciclo unico. Prova con il nome della triennale che porta lì.</p>'
+    : '<p class="nota">Non troviamo una laurea con questo nome. Prova con un’altra parola, per esempio la materia principale.</p>';
+  const tot = P.R.voci.length;
+  return trovate.map(x => {
+    const cl = x.cl, g = gustiDellaClasse(cl, P.R.s), j = P.R.voci.findIndex(v => v.classi.some(y => y.cl === cl)), v = P.R.voci[j];
+    const giudizio = j < 0 ? `Con le condizioni che hai scelto è esclusa: ${esc(x.escluso || 'nessun corso le rispetta')}.`
+      : v.inTesta ? 'È tra le lauree più vicine a te.'
+      : j < 10 ? `È al ${j + 1}° posto su ${tot}: vicina ai tuoi gusti.`
+      : j < tot / 3 ? `È al ${j + 1}° posto su ${tot}: a metà strada fra quello che hai scelto e quello che hai scartato.`
+      : `È al ${j + 1}° posto su ${tot}: lontana da quello che hai scelto nel quiz. Non vuol dire che sia sbagliata per te, ma guarda bene il piano degli esami: è quello che studieresti.`;
+    return `<article class="laurea idea-scheda">
+      <header class="laurea-testa"><div class="laurea-nome"><h3>${esc(nomeClasse(cl))}</h3><p class="tenue piccolo">Classe ${esc(cl.classe)} · ${fmt(x.corsi.length)} corsi in Italia</p></div></header>
+      <p><b>${giudizio}</b></p>
+      ${barraGusti(g)}
+      <div class="perche">${perche(g)}</div>
+      <a class="btn" href="${PAGINE ? pagClasse(cl.classe) : '#esplora'}" data-classe-link="${esc(cl.classe)}">Tutti i ${fmt(x.corsi.length)} corsi</a>
+    </article>`;
+  }).join('');
+}
+const elenco = xs => xs.length < 2 ? (xs[0] || '') : xs.slice(0, -1).join(', ') + (/^[eèé]/i.test(xs[xs.length - 1]) ? ' ed ' : ' e ') + xs[xs.length - 1];
 const pct = x => `${Math.round(100 * x)}%`;
 function quotaFamiglia(cl, f) { return f.ambiti.reduce((t, a) => t + (cl.quote[a] || 0), 0); }
 function giudizio(v) { return v >= .6 ? 'ti attira molto' : v >= SOGLIA ? 'ti attira' : v > -SOGLIA ? 'neutro' : v > -.6 ? 'ti attira poco' : 'lo eviti'; }
@@ -462,11 +653,12 @@ function barraGusti(g) {
     <p class="cifre-gusti num"><span><b>${pct(g.piace)}</b> ti attira</span><span><b>${pct(g.scarta)}</b> scartato</span></p>`;
 }
 function perche(g) {
-  const pro = g.pro.slice(0, 2).map(([a, q]) => `${AMBITI_NOMI[a]} (${pct(q)})`), contro = g.contro.filter(([, q]) => q >= .05).slice(0, 2);
+  const pro = g.pro.slice(0, 2).map(([a, q]) => `${AMBITI_BREVI[a]} (${pct(q)})`), contro = g.contro.filter(([, q]) => q >= .05).slice(0, 2);
   const frasi = [];
-  if (pro.length) frasi.push(`<b>Perché:</b> ${g.piace >= .5 ? 'più della metà' : g.piace >= .3 ? 'una buona parte' : 'una parte'} dei crediti è in ambiti che ti attirano, soprattutto ${elenco(pro)}.`);
+  if (pro.length && g.piace < .1) frasi.push('<b>Perché:</b> quasi niente del piano degli esami è in ambiti che ti attirano.');
+  else if (pro.length) frasi.push(`<b>Perché:</b> ${g.piace >= .5 ? 'più della metà' : g.piace >= .3 ? 'una buona parte' : 'una parte'} dei crediti è in ambiti che ti attirano, soprattutto ${elenco(pro)}.`);
   else frasi.push('<b>Perché:</b> non contiene quasi nulla di quello che hai scartato, anche se nessun ambito ti attira in modo netto.');
-  if (contro.length) frasi.push(`<b>Da sapere:</b> circa il ${pct(contro.reduce((t, [, q]) => t + q, 0))} dei crediti è di ${elenco(contro.map(([a]) => AMBITI_NOMI[a]))}, che hai messo spesso tra le cose che ti attirano meno.`);
+  if (contro.length) frasi.push(`<b>Da sapere:</b> circa il ${pct(contro.reduce((t, [, q]) => t + q, 0))} dei crediti è di ${elenco(contro.map(([a]) => AMBITI_BREVI[a]))}, che hai messo spesso tra le cose che ti attirano meno.`);
   else if (g.scarta < .05) frasi.push('<b>Da sapere:</b> quasi niente di quello che hai scartato.');
   return frasi.map(t => `<p>${t}</p>`).join('');
 }
@@ -487,20 +679,22 @@ function schedaLaurea(v, posizione, R, r) {
   const sotto = v.sanitarie ? `${v.classi.length === 1 ? '1 classe' : `${v.classi.length} classi`} · lauree triennali abilitanti, a numero programmato`
     : `Classe ${esc(cl.classe)} · ${cl.tipo === 'ciclo unico' ? `Ciclo unico, ${/LM-41|LM-46/.test(cl.classe) ? 6 : 5} anni` : 'Triennale'} · ${fmt(x.corsi.length)} corsi in Italia`;
   const nomi = cl.nomiComuni.filter(([n]) => norma(n) !== norma(titolo)).slice(0, 3).map(([n]) => `«${esc(n)}»`);
-  return `<article class="laurea${posizione === 1 ? ' prima' : ''}">
+  const primissima = v === R.voci[0];
+  return `<article class="laurea${primissima ? ' prima' : ''}">
     <header class="laurea-testa">
       ${posizione ? `<span class="posizione num" aria-label="Posizione ${posizione}">${posizione}</span>` : `<span class="tessera">${ICONA_BUSSOLA}</span>`}
       <div class="laurea-nome">
         <h3>${esc(titolo)}</h3>
         <p class="tenue piccolo">${sotto}</p>
       </div>
+      ${v.inTesta && !primissima ? '<span class="etichetta pari">Alla pari con la prima</span>' : ''}
       ${alla ? '<span class="etichetta forte cieca">Scelta alla cieca</span>' : ''}
     </header>
     ${barraGusti(g)}
     <div class="perche">${perche(g)}</div>
     ${v.sanitarie ? `<ul class="sottoclassi">${v.classi.map(y => `<li><b>${esc(nomeClasse(y.cl))}</b><span class="tenue"> · ${fmt(y.corsi.length)} corsi, per esempio ${y.cl.nomiComuni.slice(0, 2).map(([n]) => `«${esc(n.replace(/\s*\(abilitante.*$/i, ''))}»`).join(' e ')}</span></li>`).join('')}</ul>`
       : nomi.length ? `<p class="tenue piccolo">Di solito i corsi si chiamano ${elenco(nomi)}.</p>` : ''}
-    ${camp && ese ? `<details class="primo-anno"${posizione === 1 ? ' open' : ''}><summary>Un primo anno vero, per esempio ${esc(ese.ateneoNome)}${cittaDi(ese) ? `, ${esc(cittaDi(ese))}` : ''}</summary>
+    ${camp && ese ? `<details class="primo-anno"${primissima ? ' open' : ''}><summary>Un primo anno vero, per esempio ${esc(ese.ateneoNome)}${cittaDi(ese) ? `, ${esc(cittaDi(ese))}` : ''}</summary>
       <ul>${camp.esami.map(([n, k]) => `<li><span>${esc(titoloCorso(n))}</span><span class="cfu num">${k ? `${fmt(k)} CFU` : ''}</span></li>`).join('')}</ul>
       <a href="#corso.${ese.i}">Il piano completo di questo corso →</a></details>` : ''}
     <div class="laurea-corsi">
@@ -533,7 +727,12 @@ function finisci() {
   Q.fatto = true; salva('quiz', Q); salva('profilo', codice);
   location.hash = '#profilo.' + codice;
 }
-let attesaQuiz = null;
+let attesaQuiz = null, attesaIdea = null;
+document.addEventListener('input', ev => {
+  if (ev.target.id !== 'idea-laurea') return;
+  clearTimeout(attesaIdea);
+  attesaIdea = setTimeout(() => { const box = $('#idea-risultati'); if (box) box.innerHTML = risultatiIdea(ev.target.value); }, 250);
+});
 document.addEventListener('click', ev => {
   const b = ev.target.closest('[data-q]'); if (!b) return;
   const a = b.dataset.q, i = +b.dataset.i;
@@ -553,7 +752,8 @@ document.addEventListener('click', ev => {
     clearTimeout(attesaQuiz);
     if (!completa && sc[0] != null && sc[1] != null) attesaQuiz = setTimeout(() => { if (Q.passo === k && rotta().nome === 'quiz') passa(k + 1); }, 450);
   }
-  else if (a === 'lavoro' || a === 'strada') {
+  else if (a === 'modo') { Q[b.dataset.k] = +b.dataset.v; salva('quiz', Q); mostraQuiz(false, `[data-q="modo"][data-k="${b.dataset.k}"][data-v="${b.dataset.v}"]`); }
+  else if (a === 'lavoro') {
     const k = Q.passo; Q[a] = i; salva('quiz', Q); mostraQuiz(false, `[data-q="${a}"][data-i="${i}"]`);
     clearTimeout(attesaQuiz); attesaQuiz = setTimeout(() => { if (Q.passo === k && rotta().nome === 'quiz') passa(k + 1); }, 350);
   }
