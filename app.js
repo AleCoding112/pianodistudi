@@ -20,6 +20,9 @@ const ICONE = {
 };
 const ANNO_ACCADEMICO = '2026/27';
 const NOME = 'Piano di Studi';
+// sul sito pubblicato (non nell'artifact) ci sono le pagine indice: i link ci portano anche i motori di ricerca
+const PAGINE = !!document.querySelector('link[rel="canonical"]');
+const pagClasse = cl => `classi/${norma(cl).replace(/ /g, '-')}.html`;
 const TIPI_BREVI = { 'triennale': 'Triennale', 'magistrale': 'Magistrale', 'ciclo unico': 'Ciclo unico' };
 const DURATA = { 'triennale': 3, 'magistrale': 2, 'ciclo unico': 5 };
 const TAF = { A: 'base', B: 'caratterizzante', C: 'affine', D: 'a scelta', E: 'prova finale e lingua', F: 'altre attività', S: 'tirocinio' };
@@ -371,11 +374,11 @@ function vistaCorso(i) {
   const nelConfronto = S.confronto.includes(c.i);
   const accesso = testoAccesso(c, true);
   return `<div class="colonna">
-    <nav class="briciole" aria-label="Percorso"><a href="#esplora">Corsi</a><span>/</span>${c.gruppo ? `<a href="#esplora" data-gruppo-link="${esc(c.gruppo)}">${esc(c.gruppo)}</a><span>/</span>` : ''}<span>${esc(c.classe || '')}</span></nav>
+    <nav class="briciole" aria-label="Percorso"><a href="#esplora">Corsi</a><span>/</span>${c.gruppo ? `<a href="#esplora" data-gruppo-link="${esc(c.gruppo)}">${esc(c.gruppo)}</a><span>/</span>` : ''}${c.classe && PAGINE ? `<a href="${pagClasse(c.classe)}">${esc(c.classe)}</a>` : `<span>${esc(c.classe || '')}</span>`}</nav>
     <div class="testa-corso">
       <div>
         <h1>${esc(titoloCorso(c.nome))}</h1>
-        <p class="ateneo">${esc(c.ateneoNome)}${cittaDi(c) ? ` · ${esc(cittaDi(c))}` : ''}${distanzaDi(c) != null ? ` <span class="tenue">· ${distanzaDi(c) < 1 ? 'nel tuo comune' : `a ${testoDistanza(distanzaDi(c))} da casa`}</span>` : ''}</p>
+        <p class="ateneo">${PAGINE ? `<a href="atenei/${esc(c.ateneo)}.html">${esc(c.ateneoNome)}</a>` : esc(c.ateneoNome)}${cittaDi(c) ? ` · ${esc(cittaDi(c))}` : ''}${distanzaDi(c) != null ? ` <span class="tenue">· ${distanzaDi(c) < 1 ? 'nel tuo comune' : `a ${testoDistanza(distanzaDi(c))} da casa`}</span>` : ''}</p>
       </div>
       <div class="azioni">
         <button type="button" class="btn" data-azione="confronto" data-i="${c.i}" aria-pressed="${nelConfronto}">${nelConfronto ? 'Nel confronto' : 'Confronta'}</button>
@@ -407,7 +410,7 @@ function sezioneAltrove(c) {
   altri.sort((a, b) => S.casa ? (distanzaDi(a) ?? 1e9) - (distanzaDi(b) ?? 1e9) : a.ateneoNome.localeCompare(b.ateneoNome, 'it'));
   return `<section class="sezione altrove"><h2>Lo stesso tipo di corso altrove <small>${fmt(altri.length)} corsi della classe ${esc(c.classe)}${S.casa ? ', dal più vicino' : ''}</small></h2>
     <div class="elenco">${altri.slice(0, 6).map(rigaCorso).join('')}</div>
-    <div class="altri"><a class="btn" href="#esplora" data-classe-link="${esc(c.classe)}">Vedi tutti i ${fmt(altri.length + 1)}</a></div></section>`;
+    <div class="altri"><a class="btn" href="${PAGINE ? pagClasse(c.classe) : '#esplora'}" data-classe-link="${esc(c.classe)}">Vedi tutti i ${fmt(altri.length + 1)}</a></div></section>`;
 }
 
 const statoPiano = { percorso: 0 };
@@ -646,15 +649,19 @@ function vistaFonti() {
 }
 
 /* ---------------- instradamento ---------------- */
+// le pagine indice (atenei/, classi/, citta/) arrivano già scritte: si mostrano com'erano finché non si naviga altrove;
+// anche il titolo resta quello scritto (sulle pagine dei corsi è più completo di quello che farebbe l'app)
+const STATICA = window.BIVIO_STATICA ? $('#app').innerHTML : null, TITOLO_PAGINA = document.title;
 function rotta() {
   // le pagine statiche dei corsi (corsi/<nome>.html) dicono quale corso mostrare finché non si naviga altrove
   if (!location.hash && window.BIVIO_CORSO != null) return { nome: 'corso', arg: String(window.BIVIO_CORSO) };
+  if (!location.hash && STATICA) return { nome: 'statica' };
   const h = (location.hash || '#casa').slice(1); const [nome, arg] = h.split('.'); return { nome: nome || 'casa', arg };
 }
 function disegna(inCima = true) {
   const { nome, arg } = rotta(), app = $('#app');
   const viste = { casa: vistaCasa, esplora: vistaEsplora, corso: () => vistaCorso(+arg), materie: vistaMaterie, confronta: vistaConfronta, fonti: vistaFonti,
-    quiz: vistaQuiz, profilo: () => vistaProfilo(arg) };
+    quiz: vistaQuiz, profilo: () => vistaProfilo(arg), statica: () => STATICA };
   const y = window.scrollY;
   // chi usa la tastiera non deve perdere il punto in cui era: dopo il ridisegno il fuoco torna sullo stesso controllo
   const att = document.activeElement, dentro = att && att !== app && app.contains(att);
@@ -665,7 +672,7 @@ function disegna(inCima = true) {
   const sezione = nome === 'profilo' ? 'quiz' : nome;
   document.querySelectorAll('[data-nav]').forEach(a => a.toggleAttribute('aria-current', false) || (a.dataset.nav === sezione && a.setAttribute('aria-current', 'page')));
   const n = $('#n-confronto'); n.hidden = !S.confronto.length; n.textContent = S.confronto.length;
-  document.title = nome === 'corso' && S.corsi[+arg] ? `${titoloCorso(S.corsi[+arg].nome)} · ${NOME}` : sezione === 'quiz' ? `Quale laurea fa per te? · ${NOME}` : NOME;
+  document.title = !location.hash && (STATICA || window.BIVIO_CORSO != null) ? TITOLO_PAGINA : nome === 'corso' && S.corsi[+arg] ? `${titoloCorso(S.corsi[+arg].nome)} · ${NOME}` : sezione === 'quiz' ? `Quale laurea fa per te? · ${NOME}` : NOME;
   // il quiz ha i suoi dati: si caricano la prima volta che serve, poi si ridisegna
   if (sezione === 'quiz' && !S.orientamento) caricaOrientamento().then(() => disegna(false));
   if (nome === 'casa') requestAnimationFrame(() => disegnaMappa($('#mappa-casa'), S.corsi.filter(c => !c.fuori), { grande: true }));

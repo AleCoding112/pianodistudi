@@ -229,6 +229,18 @@ select { appearance: none; -webkit-appearance: none; height: 40px; border: 1px s
 .sezione > h2 { margin-bottom: 14px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; font-size: 1.45rem; }
 .sezione > h2 small { font-family: var(--f-testo); font-weight: 400; font-size: .9rem; color: var(--tenue); letter-spacing: 0; }
 .percorsi { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+.testa-corso .ateneo a { color: inherit; text-decoration-color: var(--linea); }
+.testa-corso .ateneo a:hover { color: var(--lampone-testo); }
+
+/* pagine indice (atenei, classi, città) e corsi simili nella pagina statica del corso */
+.sotto-titolo { font-size: 1.08rem; color: var(--tenue); max-width: 72ch; margin-top: 12px; text-wrap: pretty; }
+.sezione > h2 a { color: inherit; text-decoration: none; }
+.sezione > h2 a:hover { color: var(--lampone-testo); }
+.indice-corsi { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--linea); }
+.indice-corsi li { padding: 10px 2px; border-bottom: 1px solid var(--linea); overflow-wrap: anywhere; }
+.indice-corsi a { color: var(--inchiostro); font-weight: 600; text-decoration: none; }
+.indice-corsi a:hover { color: var(--lampone-testo); }
+.altri-indici { margin-top: 24px; color: var(--tenue); }
 .striscia { display: grid; gap: 10px; padding: 18px 18px 18px 10px; background: var(--foglio); border: 1px solid var(--linea); border-radius: var(--r); }
 .anno-striscia { display: grid; grid-template-columns: 76px minmax(0, 1fr) 62px; gap: 10px; align-items: center; }
 .anno-striscia .lbl { font-family: var(--f-codici); font-size: .78rem; color: var(--tenue); background: none; border: 0; padding: 6px 8px; border-radius: 8px; cursor: pointer; text-align: left; white-space: nowrap; }
@@ -305,6 +317,7 @@ table.confronto { border-collapse: separate; border-spacing: 0; width: 100%; }
 .piede .colonna { display: grid; gap: 8px; max-width: 1160px; }
 .piede .marchio { font-size: 1.05rem; margin-bottom: 6px; justify-self: start; }
 .piede .logo { width: 26px; height: 26px; }
+.piede .indici a { color: inherit; }
 .caricamento { color: var(--tenue); padding: 40px 0; }
 
 @media (max-width: 900px) {
