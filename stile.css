@@ -318,6 +318,29 @@ table.confronto { border-collapse: separate; border-spacing: 0; width: 100%; }
 .piede .marchio { font-size: 1.05rem; margin-bottom: 6px; justify-self: start; }
 .piede .logo { width: 26px; height: 26px; }
 .piede .indici a { color: inherit; }
+
+/* consenso alla misurazione delle visite (solo sul sito pubblicato): i due pulsanti sono identici, la scelta non
+   dev'essere suggerita dalla grafica */
+.consenso { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; background: var(--foglio); border-top: 1px solid var(--linea);
+  box-shadow: var(--ombra); padding: 14px max(20px, env(safe-area-inset-right, 0px)) calc(14px + env(safe-area-inset-bottom, 0px)) max(20px, env(safe-area-inset-left, 0px));
+  display: flex; gap: 18px; align-items: center; flex-wrap: wrap; justify-content: center; font-size: .85rem; line-height: 1.55; color: var(--tenue); }
+.consenso p { max-width: 68ch; }
+.consenso b { color: var(--inchiostro); }
+.consenso a { font-weight: 600; }
+.consenso-b { display: flex; gap: 10px; flex-shrink: 0; }
+.consenso-b button { font-size: .85rem; font-weight: 600; padding: 9px 22px; border-radius: var(--r-piccolo); cursor: pointer;
+  border: 1px solid var(--linea); background: var(--carta); color: var(--inchiostro); }
+.consenso-b button:hover { border-color: var(--lampone); color: var(--lampone-testo); }
+.pie-consenso button { font-size: .8rem; padding: 2px 9px; margin-left: 4px; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--linea); background: transparent; color: inherit; }
+.pie-consenso a { color: inherit; }
+@media (max-width: 640px) {
+  /* sopra la barra di navigazione in basso */
+  .consenso { bottom: calc(66px + env(safe-area-inset-bottom, 0px)); padding: 13px 16px; gap: 12px; }
+  .consenso-b { width: 100%; }
+  .consenso-b button { flex: 1; }
+}
+@media print { .consenso, .pie-consenso { display: none !important; } }
 .caricamento { color: var(--tenue); padding: 40px 0; }
 
 @media (max-width: 900px) {

@@ -642,7 +642,7 @@ function vistaFonti() {
     </ul>
     ${senza.length ? `<h2>Corsi senza piano degli esami</h2><ul>${senza.map(x => `<li><b>${esc(x.nome)}</b> (${x.n === x.tot ? `${fmt(x.n)} corsi` : `${fmt(x.n)} corsi su ${fmt(x.tot)}`}): ${esc(x.motivo)}.</li>`).join('')}</ul>` : ''}
     <h2>Privacy</h2>
-    <p>${NOME} non usa cookie, non traccia le visite e non chiede dati a servizi esterni. Il comune di partenza e i corsi messi a confronto restano salvati solo nel tuo browser, per ritrovarli la volta dopo.</p>
+    <p>${PAGINE ? 'Senza il tuo consenso il sito non usa cookie e non chiede niente a servizi esterni; con il consenso usa Google Analytics, solo per contare le visite. <a href="privacy.html">Tutti i dettagli</a>.' : `${NOME} non usa cookie, non traccia le visite e non chiede dati a servizi esterni.`} Il comune di partenza e i corsi messi a confronto restano salvati solo nel tuo browser, per ritrovarli la volta dopo.</p>
     <h2>Aggiornamento</h2>
     <p>Dati raccolti il ${esc(dataLunga(S.aggiornato) || '—')}. I piani possono cambiare durante l’anno: prima di iscriverti controlla sempre sul sito del corso.</p>
   </div>`;
