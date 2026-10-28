@@ -424,6 +424,7 @@ function introQuiz() {
       ${ultimo && decodifica(ultimo) ? `<a class="btn grande" href="#profilo.${ultimo}">Il tuo ultimo profilo</a>` : ''}
     </div>
     <p class="tenue piccolo">Non ti chiediamo i voti né dati personali. Le risposte restano su questo dispositivo. È un aiuto per orientarsi, non un verdetto.</p>
+    <p class="tenue piccolo">Hai già una triennale? <a href="#magistrale">C’è il quiz per la magistrale</a>, che parte dagli esami che hai fatto.</p>
   </div>`;
 }
 function barraQuiz(p) {
@@ -657,7 +658,7 @@ function risultatiIdea(q) {
   }
   const trovate = P.R.tutte.filter(x => conta.has(x.cl.k)).sort((a, b) => conta.get(b.cl.k) - conta.get(a.cl.k)).slice(0, 3);
   if (!trovate.length) return magistrali
-    ? '<p class="nota">È una laurea magistrale, che si sceglie dopo la triennale: il quiz confronta le lauree triennali e a ciclo unico. Prova con il nome della triennale che porta lì.</p>'
+    ? '<p class="nota">È una laurea magistrale, che si sceglie dopo la triennale: il quiz confronta le lauree triennali e a ciclo unico. Prova con il nome della triennale che porta lì. Se la triennale ce l’hai già, c’è <a href="#magistrale">il quiz per la magistrale</a>.</p>'
     : '<p class="nota">Non troviamo una laurea con questo nome. Prova con un’altra parola, per esempio la materia principale.</p>';
   const tot = P.R.voci.length;
   return trovate.map(x => {

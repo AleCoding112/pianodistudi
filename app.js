@@ -1,6 +1,6 @@
 'use strict';
 /* ---------------- stato e utilità ---------------- */
-const S = { corsi: [], atenei: {}, diz: {}, macro: [], motivi: {}, comuni: {}, regioni: {}, piani: {}, testi: {}, esami: null,
+const S = { corsi: [], atenei: {}, diz: {}, macro: [], motivi: {}, comuni: {}, regioni: {}, piani: {}, testi: {}, dopo: {}, esami: null,
   filtri: { q: '', tipo: '', gruppo: '', regione: '', accesso: '', inglese: false, distanza: false, piano: false, comune: '', classe: '' },
   ordine: 'pertinenza', mostrati: 60, casa: null, confronto: [], mappa: false };
 const $ = (s, el = document) => el.querySelector(s);
@@ -213,6 +213,12 @@ function vistaCasa() {
         <span class="tenue">Cinque minuti, niente «ti piace la matematica?». Scegli tra situazioni concrete e assaggia alla cieca il primo anno di sei lauree: il risultato si basa sugli esami veri.</span></span>
       <span class="btn primario">Inizia</span>
     </a>
+    <a class="invito-quiz secondo" href="#magistrale">
+      <span class="tessera">${ICONE.gradini}</span>
+      <span class="invito-testo"><span class="eyebrow">Hai già una triennale?</span><b>Il quiz per la magistrale</b>
+        <span class="tenue">Parte dagli esami veri del tuo corso: segni quelli che ti sono piaciuti e quelli no, dici cosa cerchi, e trovi le magistrali che li riprendono.</span></span>
+      <span class="btn">Inizia</span>
+    </a>
     <div class="cifre">
       <div><b>${fmt(n)}</b><span>corsi di laurea attivi</span></div>
       <div><b>${fmt(atenei)}</b><span>università</span></div>
@@ -221,7 +227,7 @@ function vistaCasa() {
     </div>
     <div class="strade">
       <a class="strada" href="#esplora" data-preset="primo"><span class="tessera">${ICONE.libro}</span><span class="eyebrow">Dopo le superiori</span><h3>Scegli il tuo corso</h3><p>Triennali e corsi a ciclo unico (come Medicina o Giurisprudenza): filtra per area e città, guarda gli esami anno per anno, confronta gli atenei.</p></a>
-      <a class="strada" href="#esplora" data-preset="magistrale"><span class="tessera">${ICONE.gradini}</span><span class="eyebrow">Dopo la triennale</span><h3>Trova la magistrale</h3><p>Per ogni corso: esami, curricula e, dove l’ateneo li pubblica, i requisiti per entrare.</p></a>
+      <a class="strada" href="#esplora" data-preset="magistrale"><span class="tessera">${ICONE.gradini}</span><span class="eyebrow">Dopo la triennale</span><h3>Trova la magistrale</h3><p>Per ogni corso: esami, curricula e, dove l’ateneo li pubblica, i requisiti per entrare. Nella pagina della tua triennale, le magistrali più affini.</p></a>
       <a class="strada" href="#materie"><span class="tessera">${ICONE.materia}</span><span class="eyebrow">Parti da una materia</span><h3>Dove si studia…</h3><p>Scrivi un esame, per esempio «Intelligenza artificiale»: ecco i corsi che lo hanno nel piano.</p></a>
     </div>
     <section class="aree-casa">
@@ -306,13 +312,13 @@ function testoAccesso(c, intero) {
   if (a === 'incerto') return intero ? 'Da controllare' : '';
   return intero ? 'Non indicato' : '';
 }
-function rigaCorso(c) {
+function rigaCorso(c, extra = '') {
   const d = distanzaDi(c);
   const accesso = testoAccesso(c, false);
   return `<a class="riga" href="#corso.${c.i}">
     <div style="min-width:0">
       <div class="titolo-riga">${esc(titoloCorso(c.nome))}</div>
-      <div class="sotto-riga">${esc(c.ateneoNome)}${cittaDi(c) ? ` · ${esc(cittaDi(c))}` : ''}</div>
+      <div class="sotto-riga">${esc(c.ateneoNome)}${cittaDi(c) ? ` · ${esc(cittaDi(c))}` : ''}</div>${extra}
       <div class="etichette">
         ${c.classe ? `<span class="etichetta codice" title="${esc(c.nomeClasse || '')}">${esc(c.classe)}</span>` : ''}
         ${c.tipo ? `<span class="etichetta">${TIPI_BREVI[c.tipo] || esc(c.tipo)}</span>` : ''}
@@ -394,6 +400,7 @@ function vistaCorso(i) {
     </dl>
     <div id="piano">${c.piano ? '<p class="caricamento">Carico il piano degli esami…</p>' : sezioneSenzaPiano(c)}</div>
     <div id="testi"></div>
+    ${c.tipo === 'triennale' && c.piano ? '<div id="dopo"></div>' : ''}
     ${sezioneAltrove(c)}
   </div>`;
 }
@@ -561,6 +568,66 @@ function htmlTesti(x) {
       ${x.pr ? `<h3 style="margin-top:20px;margin-bottom:10px">Professioni (classificazione ISTAT)</h3><div class="mestieri">${x.pr.map(p => `<span class="etichetta">${esc(p)}</span>`).join('')}</div>` : ''}</section>` : ''}`;
 }
 
+/* ---------------- dopo la triennale: le magistrali più affini ---------------- */
+// per ogni triennale, le magistrali in ordine di affinità (dati/dopo/<ateneo>.json, da raccolta/magistrali.py): quanto i
+// loro esami somigliano a quelli della triennale, per settori scientifici. Non è un giudizio sui requisiti d'accesso
+async function dopoDi(c) {
+  if (!(c.ateneo in S.dopo)) { try { S.dopo[c.ateneo] = await json(`dati/dopo/${c.ateneo}.json`); } catch { S.dopo[c.ateneo] = {}; } }
+  return listaDopo(c);
+}
+// la lista di una triennale, a dati già caricati: [magistrale, affinità, curriculum più affine, ambiti nuovi]
+const listaDopo = c => ((S.dopo[c.ateneo] || {})[c.i] || []).map(([j, v, curr, nuovi]) => ({ c: S.corsi[j], v: v / 1000, curr: curr || null, nuovi: nuovi ? nuovi.split('.') : [] }))
+  .filter(x => x.c && !x.c.fuori);
+const AFFINE = .6;  // da qui in su una magistrale si dice affine (raccolta/magistrali.py, MINIMO)
+const NOTA_DOPO = 'In ordine di affinità: quanto i loro esami somigliano a quelli di questo corso, per materia. Non dicono se puoi iscriverti: i requisiti d’accesso li decide ogni ateneo, e li trovi nella pagina della magistrale.';
+function rigaDopo(x, stessoAteneo) {
+  const nuovi = x.nuovi.map(a => AMBITI_BREVI[a]).filter(Boolean);
+  const extra = (x.curr ? `<div class="sotto-riga">Curriculum più affine: ${esc(titoloCorso(x.curr))}</div>` : '')
+    + (nuovi.length ? `<div class="sotto-riga">Materie nuove rispetto alla triennale: ${esc(elenco(nuovi))}</div>` : '')
+    + (stessoAteneo ? '<div class="sotto-riga">Nello stesso ateneo</div>' : '');
+  return rigaCorso(x.c, extra);
+}
+async function riempiDopo(c) {
+  const box = $('#dopo'); if (!box) return;
+  const lista = await dopoDi(c), b = $('#dopo');
+  if (!b || rotta().nome !== 'corso' || +rotta().arg !== c.i) return;
+  if (!lista.length) { b.innerHTML = ''; return; }
+  const qui = lista.filter(x => x.c.ateneo === c.ateneo && x.v >= AFFINE).slice(0, 3);
+  const altrove = lista.filter(x => !qui.includes(x)).slice(0, 6);
+  b.innerHTML = `<section class="sezione altrove dopo"><h2>Dopo la triennale <small>le magistrali più affini a questo corso</small></h2>
+    <p class="nota" style="max-width:70ch;margin:-6px 0 12px">${NOTA_DOPO}</p>
+    ${qui.length ? `<h3 class="titolo-dopo">In questo ateneo</h3><div class="elenco">${qui.map(x => rigaDopo(x)).join('')}</div>` : ''}
+    <h3 class="titolo-dopo">In tutta Italia</h3><div class="elenco">${altrove.map(x => rigaDopo(x)).join('')}</div>
+    <div class="altri"><a class="btn" href="#dopo.${c.i}">Vedi tutte le ${fmt(lista.length)}</a><a class="btn primario" href="#magistrale.${c.i}">Scegli con il quiz, dagli esami di questo corso</a></div></section>`;
+}
+const statoDopo = { i: null, ordine: 'affini', regione: '', mostrati: 30 };
+function vistaDopo(i) {
+  const c = S.corsi[i];
+  if (!c || c.tipo !== 'triennale') return `<div class="colonna vuoto">Corso non trovato. <a href="#esplora">Torna all'elenco</a></div>`;
+  if (statoDopo.i !== i) Object.assign(statoDopo, { i, ordine: 'affini', regione: '', mostrati: 30 });
+  if (!(c.ateneo in S.dopo)) return '<div class="colonna"><p class="caricamento">Carico le magistrali…</p></div>';
+  const tutte = listaDopo(c);
+  const regioni = [...new Set(tutte.map(x => regioneDi(x.c)).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'it'));
+  if (statoDopo.ordine === 'distanza' && !S.casa) statoDopo.ordine = 'affini';
+  let r = tutte.filter(x => !statoDopo.regione || regioneDi(x.c) === statoDopo.regione);
+  if (statoDopo.ordine === 'distanza') r = [...r].sort((a, b) => (distanzaDi(a.c) ?? 1e9) - (distanzaDi(b.c) ?? 1e9));
+  return `<div class="colonna">
+    <nav class="briciole" aria-label="Percorso"><a href="#esplora">Corsi</a><span>/</span><a href="#corso.${c.i}">${esc(titoloCorso(c.nome))}</a><span>/</span><span>Dopo la triennale</span></nav>
+    <div class="barra-risultati">
+      <div><h1>Le magistrali più affini</h1><p class="tenue">a ${esc(titoloCorso(c.nome))} · ${esc(c.ateneoNome)}</p></div>
+      <div class="destra">
+        <select id="regione-dopo" aria-label="Regione" style="width:auto"><option value="">Tutta Italia</option>${regioni.map(g => `<option ${statoDopo.regione === g ? 'selected' : ''}>${esc(g)}</option>`).join('')}</select>
+        <select id="ordine-dopo" aria-label="Ordina" style="width:auto"><option value="affini" ${statoDopo.ordine === 'affini' ? 'selected' : ''}>Più affini</option><option value="distanza" ${statoDopo.ordine === 'distanza' ? 'selected' : ''} ${S.casa ? '' : 'disabled'}>Più vicine${S.casa ? '' : ' (scegli da dove parti)'}</option></select>
+      </div>
+    </div>
+    <p class="nota" style="max-width:70ch;margin:0 0 14px">${NOTA_DOPO} Le affinità vengono dai settori scientifici degli esami obbligatori e a scelta dei piani ${ANNO_ACCADEMICO}; per le magistrali con più curricula conta il più affine.</p>
+    <div style="margin-bottom:14px">${campoCasa()}</div>
+    <p class="tenue piccolo num" role="status">${fmt(r.length)} magistrali${statoDopo.regione ? ` in ${esc(statoDopo.regione)}` : ''}</p>
+    ${r.length ? `<div class="elenco">${r.slice(0, statoDopo.mostrati).map(x => rigaDopo(x, x.c.ateneo === c.ateneo)).join('')}</div>${r.length > statoDopo.mostrati ? `<div class="altri"><button type="button" class="btn" data-azione="altri-dopo">Mostra altre ${fmt(Math.min(30, r.length - statoDopo.mostrati))}</button></div>` : ''}`
+      : `<div class="vuoto"><b>Nessuna magistrale affine in questa regione.</b><span>Prova con tutta Italia.</span></div>`}
+  </div>`;
+}
+
 /* ---------------- materie ---------------- */
 const statoMaterie = { q: '', scelta: null };
 function vistaMaterie() {
@@ -641,6 +708,13 @@ function vistaFonti() {
       <li>A volte il catalogo online di un ateneo non coincide con il regolamento del corso (un esame con crediti diversi, un gruppo a scelta descritto in un altro modo). Riportiamo il catalogo così com’è: in caso di dubbio vale il regolamento.</li>
     </ul>
     ${senza.length ? `<h2>Corsi senza piano degli esami</h2><ul>${senza.map(x => `<li><b>${esc(x.nome)}</b> (${x.n === x.tot ? `${fmt(x.n)} corsi` : `${fmt(x.n)} corsi su ${fmt(x.tot)}`}): ${esc(x.motivo)}.</li>`).join('')}</ul>` : ''}
+    <h2>Dopo la triennale: le magistrali affini</h2>
+    <ul>
+      <li>Nella pagina di ogni triennale ci sono le magistrali più affini: quelle i cui esami somigliano di più a quelli del corso, confrontando i settori scientifici degli esami obbligatori e a scelta. Per una magistrale con più curricula conta il più affine.</li>
+      <li>L’affinità non dice se puoi iscriverti. I requisiti d’accesso (crediti in certi settori, voto, colloquio) li decide ogni ateneo e sono nella pagina della magistrale. L’unica regola che applichiamo è di legge: le magistrali delle professioni sanitarie sono per chi ha la laurea della stessa area.</li>
+      <li>Abbiamo provato il calcolo con i testi dei requisiti delle magistrali che nominano le classi di laurea ammesse: una magistrale che nomina la classe della triennale sta sopra una che non la nomina in circa 9 casi su 10.</li>
+      <li>Il <a href="#magistrale">quiz per la magistrale</a> usa lo stesso calcolo, con gli esami che hai segnato tu, e ci aggiunge quello che ti è piaciuto e cosa cerchi. Un limite: marketing e management stanno nello stesso settore scientifico, e il quiz non li distingue.</li>
+    </ul>
     <h2>Privacy</h2>
     <p>${PAGINE ? 'Senza il tuo consenso il sito non usa cookie e non chiede niente a servizi esterni; con il consenso usa Google Analytics, solo per contare le visite. <a href="privacy.html">Tutti i dettagli</a>.' : `${NOME} non usa cookie, non traccia le visite e non chiede dati a servizi esterni.`} Il comune di partenza e i corsi messi a confronto restano salvati solo nel tuo browser, per ritrovarli la volta dopo.</p>
     <h2>Aggiornamento</h2>
@@ -662,7 +736,7 @@ function rotta() {
 function disegna(inCima = true) {
   const { nome, arg } = rotta(), app = $('#app');
   const viste = { casa: vistaCasa, esplora: vistaEsplora, corso: () => vistaCorso(+arg), materie: vistaMaterie, confronta: vistaConfronta, fonti: vistaFonti,
-    quiz: vistaQuiz, profilo: () => vistaProfilo(arg), statica: () => STATICA };
+    quiz: vistaQuiz, profilo: () => vistaProfilo(arg), dopo: () => vistaDopo(+arg), magistrale: () => vistaMagistrale(arg), statica: () => STATICA };
   const y = window.scrollY;
   // chi usa la tastiera non deve perdere il punto in cui era: dopo il ridisegno il fuoco torna sullo stesso controllo
   const att = document.activeElement, dentro = att && att !== app && app.contains(att);
@@ -673,15 +747,16 @@ function disegna(inCima = true) {
   if (!(nome === 'statica' && staticaIntatta)) app.innerHTML = (viste[nome] || vistaCasa)();
   if (nome !== 'statica') staticaIntatta = false;
   if (chiaveFuoco) { const el = app.querySelector(chiaveFuoco); if (el) { el.focus({ preventScroll: true }); if (cursore != null && el.setSelectionRange) try { el.setSelectionRange(cursore, cursore); } catch {} } }
-  const sezione = nome === 'profilo' ? 'quiz' : nome;
+  const sezione = nome === 'profilo' || nome === 'magistrale' ? 'quiz' : nome;
   document.querySelectorAll('[data-nav]').forEach(a => a.toggleAttribute('aria-current', false) || (a.dataset.nav === sezione && a.setAttribute('aria-current', 'page')));
   const n = $('#n-confronto'); n.hidden = !S.confronto.length; n.textContent = S.confronto.length;
-  document.title = !location.hash && (STATICA || window.BIVIO_CORSO != null) ? TITOLO_PAGINA : nome === 'corso' && S.corsi[+arg] ? `${titoloCorso(S.corsi[+arg].nome)} · ${NOME}` : sezione === 'quiz' ? `Quale laurea fa per te? · ${NOME}` : NOME;
+  document.title = !location.hash && (STATICA || window.BIVIO_CORSO != null) ? TITOLO_PAGINA : nome === 'corso' && S.corsi[+arg] ? `${titoloCorso(S.corsi[+arg].nome)} · ${NOME}` : nome === 'dopo' && S.corsi[+arg] ? `Magistrali affini a ${titoloCorso(S.corsi[+arg].nome)} · ${NOME}` : nome === 'magistrale' ? `Quale magistrale fa per te? · ${NOME}` : sezione === 'quiz' ? `Quale laurea fa per te? · ${NOME}` : NOME;
   // il quiz ha i suoi dati: si caricano la prima volta che serve, poi si ridisegna
-  if (sezione === 'quiz' && !S.orientamento) caricaOrientamento().then(() => disegna(false));
+  if (nome !== 'magistrale' && sezione === 'quiz' && !S.orientamento) caricaOrientamento().then(() => disegna(false));
   if (nome === 'casa') requestAnimationFrame(() => disegnaMappa($('#mappa-casa'), S.corsi.filter(c => !c.fuori), { grande: true }));
   if (nome === 'esplora' && S.mappa) requestAnimationFrame(() => disegnaMappa($('#mappa-esplora'), trova()));
-  if (nome === 'corso') riempiPiano(S.corsi[+arg]);
+  if (nome === 'corso') { riempiPiano(S.corsi[+arg]); riempiDopo(S.corsi[+arg]); }
+  if (nome === 'dopo' && S.corsi[+arg] && !(S.corsi[+arg].ateneo in S.dopo)) dopoDi(S.corsi[+arg]).then(() => { if (rotta().nome === 'dopo') disegna(false); });
   if (nome === 'materie' && statoMaterie.q && !S.esami) caricaEsami().then(() => { const r = $('#risultati-materia'); if (r) r.innerHTML = risultatiMaterie(); });
   window.scrollTo(0, inCima ? 0 : y);
 }
@@ -706,6 +781,8 @@ document.addEventListener('change', ev => {
   else if (t.dataset.filtroSelect) { S.filtri[t.dataset.filtroSelect] = t.value; S.mostrati = 60; disegna(false); }
   else if (t.dataset.filtroCheck) { S.filtri[t.dataset.filtroCheck] = t.checked; S.mostrati = 60; disegna(false); }
   else if (t.id === 'ordine') { S.ordine = t.value; disegna(false); }
+  else if (t.id === 'ordine-dopo') { statoDopo.ordine = t.value; statoDopo.mostrati = 30; disegna(false); }
+  else if (t.id === 'regione-dopo') { statoDopo.regione = t.value; statoDopo.mostrati = 30; disegna(false); }
 });
 document.addEventListener('submit', ev => { ev.preventDefault(); const i = ev.target.querySelector('input'); if (ev.target.id === 'form-casa') { S.filtri = { ...S.filtri, q: i.value, comune: '', classe: '' }; vai('#esplora'); } });
 document.addEventListener('click', ev => {
@@ -722,6 +799,7 @@ document.addEventListener('click', ev => {
   else {
     const a = b.dataset.azione;
     if (a === 'altri') { S.mostrati += 60; disegna(false); }
+    else if (a === 'altri-dopo') { statoDopo.mostrati += 30; disegna(false); }
     else if (a === 'azzera') { S.filtri = { q: '', tipo: '', gruppo: '', regione: '', accesso: '', inglese: false, distanza: false, piano: false, comune: '', classe: '' }; S.mostrati = 60; vai('#esplora'); }
     else if (a === 'mostra-filtri') $('#filtri').classList.toggle('aperti');
     else if (a === 'mappa') { S.mappa = !S.mappa; disegna(false); }

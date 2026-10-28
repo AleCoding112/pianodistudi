@@ -587,3 +587,49 @@ i.neutro { background: var(--neutro); }
 /* quiz: «nessuna mi attira davvero», al posto dell'attività che attira di più */
 .btn.nessuna { margin-top: 12px; }
 .btn.nessuna[aria-pressed="true"] { background: var(--cipria); color: var(--lampone-testo); border-color: var(--lampone); font-weight: 600; }
+
+/* dopo la triennale: le magistrali più affini */
+.dopo .titolo-dopo { margin: 18px 0 4px; font-size: .95rem; color: var(--tenue); font-weight: 600; }
+.dopo .altri { gap: 10px; flex-wrap: wrap; }
+.invito-quiz.secondo { margin-top: 14px; background: var(--foglio); }
+
+/* quiz «dopo la triennale» */
+.cerca-triennale { margin-top: 22px; max-width: 560px; }
+.scelta-triennale { margin-top: 14px; }
+button.riga { width: 100%; background: none; border: 0; border-bottom: 1px solid var(--linea); font: inherit; text-align: left; cursor: pointer; }
+.triennale-scelta { display: flex; justify-content: space-between; align-items: center; gap: 14px; margin-top: 22px; padding: 16px 18px; border: 1.5px solid var(--lampone); border-radius: 16px; background: var(--cipria); }
+.anno-voti { margin-top: 26px; }
+.anno-voti h2 { font-size: 1.15rem; margin-bottom: 4px; }
+.gruppo-voti { margin: 14px 0 2px; font-size: .86rem; color: var(--tenue); font-weight: 600; }
+.voti { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--linea); }
+.voti li { display: flex; justify-content: space-between; align-items: center; gap: 8px 16px; flex-wrap: wrap; padding: 9px 2px; border-bottom: 1px solid var(--linea); }
+.voti li[data-voto="1"] .nome-voto { color: var(--lampone-testo); font-weight: 600; }
+.voti li[data-voto="-1"] .nome-voto { color: var(--tenue); }
+.nome-voto { flex: 1 1 260px; min-width: 0; overflow-wrap: anywhere; }
+.nome-voto .cfu { margin-left: 8px; font-family: var(--f-codici); font-size: .78rem; color: var(--tenue); font-weight: 400; }
+.voto { display: flex; gap: 6px; flex-wrap: wrap; }
+.voto-btn { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--linea); background: var(--foglio); color: inherit; border-radius: 999px; padding: 6px 12px; font: inherit; font-size: .86rem; cursor: pointer; min-height: 36px; }
+.voto-btn svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.voto-btn:hover { border-color: var(--lampone); }
+.voto-btn[aria-pressed="true"] { background: var(--cipria); color: var(--lampone-testo); border-color: var(--lampone); font-weight: 600; }
+.voto-btn.meno[aria-pressed="true"] { background: var(--foglio); color: var(--scarta); border-color: var(--scarta); box-shadow: inset 0 0 0 1px var(--scarta); }
+.quiz-nav .nota-nav { align-self: center; text-align: center; }
+.direzioni { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.direzioni .opzione { min-height: 0; }
+.aree-nuove { margin-top: 30px; }
+.famiglia-aree { display: grid; gap: 6px; margin-top: 10px; }
+.scelta-btn:disabled { opacity: .45; cursor: default; }
+.risultato-mag { max-width: 900px; }
+.risultato-mag h1 { font-size: clamp(2rem, 5vw, 3rem); letter-spacing: -.03em; margin-top: 6px; }
+.riassunto-mag { display: grid; gap: 8px; margin: 16px 0 22px; max-width: 75ch; }
+.riassunto-mag p { margin: 0; }
+.riassunto-mag svg { width: 15px; height: 15px; fill: none; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; vertical-align: -2px; margin-right: 6px; }
+.segno-piu svg { stroke: var(--lampone); }
+.segno-meno svg { stroke: var(--scarta); }
+.perche.piu { color: var(--lampone-testo); }
+@media (max-width: 720px) {
+  .direzioni { grid-template-columns: minmax(0, 1fr); }
+  .voto-btn span { display: none; }
+  .voto-btn { padding: 6px 10px; }
+  .voto-btn:not(.piu):not(.meno) { padding: 6px 12px; }
+}
