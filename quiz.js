@@ -323,21 +323,26 @@ function margini(lista) {
 const APPARIZIONI = {};
 SITUAZIONI.forEach((sit, k) => sit.o.forEach(([, pesi], i) => { for (const a in pesi) if (pesi[a] === 1) (APPARIZIONI[a] = APPARIZIONI[a] || []).push([k, i]); }));
 // quanto è netto il profilo: la distanza fra le due aree che ti attirano di più e le due che ti attirano di meno, messa a
-// confronto con quella di 2.000 risposte date a caso (sempre le stesse). Dodici scelte forzate sono troppo poche per
+// confronto con quella di 1.000 risposte date a caso (sempre le stesse). Dodici scelte forzate sono troppo poche per
 // misurare la coerenza di una persona (provato con gli studenti simulati: nessuna misura separa bene chi risponde a caso da
 // chi è solo un po' incostante); dire se il profilo si distingue dal caso, invece, si può. pct: la quota di risposte a caso
 // con un profilo meno netto. Sotto la metà il profilo non si distingue dal caso, e il risultato lo dice
 const nettezza = s => { const f = FAMIGLIE.map(f => f.ambiti.reduce((t, a) => t + s[a], 0) / f.ambiti.length).sort((x, y) => y - x); return f[0] + f[1] - f[6] - f[7]; };
-let NETTEZZE_CASO = null;
+// il confronto è con risposte a caso date nelle stesse condizioni: dove hai detto «nessuna mi attira», anche il caso lo dice
+// (sennò chi è selettivo, e lo dice spesso, sembrerebbe rispondere a caso: il profilo diventa meno largo, non meno vero)
+const NETTEZZE_CASO = new Map();
 function nitidezza(r, s) {
-  if (!NETTEZZE_CASO) {
+  const nessune = r.scelte.map(([b]) => b === NESSUNA), chiave = nessune.map(Number).join('') + (r.lavoro == null ? '-' : '');
+  if (!NETTEZZE_CASO.has(chiave)) {
     // generatore con un seme fisso (mulberry32): le stesse risposte a caso a ogni visita, quindi lo stesso verdetto
     let seme = 20261028;
     const caso = n => { seme = (seme + 0x6D2B79F5) | 0; let x = Math.imul(seme ^ (seme >>> 15), 1 | seme); x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x; return Math.floor(((x ^ (x >>> 14)) >>> 0) / 4294967296 * n); };
-    NETTEZZE_CASO = Array.from({ length: 2000 }, () => nettezza(gustiPerAmbito({
-      scelte: SITUAZIONI.map(() => { const b = caso(4); return [b, (b + 1 + caso(3)) % 4]; }), lavoro: caso(LAVORO.o.length) }))).sort((x, y) => x - y);
+    NETTEZZE_CASO.set(chiave, Array.from({ length: 1000 }, () => nettezza(gustiPerAmbito({
+      scelte: SITUAZIONI.map((_, k) => { const b = caso(4), w = (b + 1 + caso(3)) % 4; return [nessune[k] ? NESSUNA : b, w]; }),
+      lavoro: r.lavoro == null ? null : caso(LAVORO.o.length) }))).sort((x, y) => x - y));
   }
-  const x = nettezza(s), sotto = NETTEZZE_CASO.findIndex(v => v >= x), pct = (sotto < 0 ? NETTEZZE_CASO.length : sotto) / NETTEZZE_CASO.length;
+  const NC = NETTEZZE_CASO.get(chiave);
+  const x = nettezza(s), sotto = NC.findIndex(v => v >= x), pct = (sotto < 0 ? NC.length : sotto) / NC.length;
   const voto = ([k, i]) => r.scelte[k][0] === i ? 1 : r.scelte[k][1] === i ? -1 : 0;
   const coppie = Object.entries(APPARIZIONI).map(([a, [x1, y1]]) => [a, voto(x1), voto(y1)]);
   return { pct, livello: pct >= .8 ? 'alta' : pct >= .5 ? 'media' : 'bassa',
@@ -581,7 +586,7 @@ function vistaProfilo(codice) {
         <li>La vicinanza mette insieme due cose: quanto la forma dei tuoi gusti somiglia a quella della laurea (anche quando la laurea mescola più ambiti, come Comunicazione o Biotecnologie) e quanta parte dei suoi crediti è in ambiti che ti attirano. Tolgono punti i crediti in ambiti che hai scartato.</li>
         <li>Le domande sul modo di studiare spostano di poco. Per ogni laurea abbiamo indicato noi se è più teorica o più applicata e se porta a lavorare con le persone: è un giudizio nostro, non un dato, e serve solo a separare lauree con materie simili.</li>
         <li>Rifacciamo il calcolo dodici volte, togliendo ogni volta una delle situazioni: due lauree la cui differenza sta dentro quelle variazioni sono «alla pari». Nell’assaggio alla cieca la laurea scelta guadagna proprio quel margine: supera quelle con cui era alla pari, non quelle davvero più vicine a te.</li>
-        <li>Per dire quanto è netto il profilo confrontiamo la distanza fra le aree che ti attirano di più e quelle che ti attirano di meno con quella di 2.000 serie di risposte date a caso.</li>
+        <li>Per dire quanto è netto il profilo confrontiamo la distanza fra le aree che ti attirano di più e quelle che ti attirano di meno con quella di 1.000 serie di risposte date a caso (che dicono «nessuna mi attira» dove l’hai detto tu).</li>
         <li>Abbiamo provato il calcolo con 26 studenti simulati, di cui sapevamo quale laurea cercare e che rispondevano con qualche incertezza, come le persone vere: la laurea giusta è finita tra le prime tre in circa 9 casi su 10. Sono simulazioni, non persone vere: servono a scoprire errori nel calcolo, non a garantire il risultato.</li>
         <li>Non usiamo i voti: dicono quanto vai bene oggi in una materia, non quanto ti piacerà studiarla. È un aiuto per orientarsi, non un test psicologico.</li>
         <li>Il quiz non prevede il mercato del lavoro fra dieci anni, e con l’intelligenza artificiale che cambia molti mestieri nessuno lo sa fare in modo affidabile. Ti aiuta a scegliere qualcosa che ti piacerà studiare, che è quello che fa arrivare in fondo.</li>
@@ -626,7 +631,7 @@ function ritrattoDi(r, R, f) {
     if (ponte.length) frasi.push(`Le tue due aree si incontrano in lauree come ${elenco(ponte.map(cl => `«${esc(nomePercorso(cl))}»`))}.`);
   }
   if (N.contraddetti.length >= 3) frasi.push(`Alcune attività le hai scelte una volta e scartate l’altra (quelle di ${esc(nomi(N.contraddetti.slice(0, 3)))}): su quegli ambiti il quiz è meno sicuro.`);
-  if (N.livello !== 'bassa') frasi.push(N.pct >= .995 ? 'Il tuo profilo è più netto di tutte le 2.000 serie di risposte date a caso con cui l’abbiamo confrontato.'
+  if (N.livello !== 'bassa') frasi.push(N.pct >= .995 ? 'Il tuo profilo è più netto di tutte le 1.000 serie di risposte date a caso con cui l’abbiamo confrontato.'
     : `Il tuo profilo è più netto di quello che darebbero ${Math.round(100 * N.pct)} serie di risposte date a caso su 100${N.livello === 'media' ? ': abbastanza per orientarti, non per decidere' : ''}.`);
   return frasi.filter(Boolean);
 }
