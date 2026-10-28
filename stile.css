@@ -580,3 +580,6 @@ i.neutro { background: var(--neutro); }
 .piu-titolo { color: var(--lampone); font-weight: 800; }
 .chiedi-casa { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 16px; padding: 14px 16px; border-radius: var(--r-piccolo); background: var(--cipria); }
 .chiedi-casa .casa input { background: var(--foglio); }
+/* quiz: «nessuna mi attira davvero», al posto dell'attività che attira di più */
+.btn.nessuna { margin-top: 12px; }
+.btn.nessuna[aria-pressed="true"] { background: var(--cipria); color: var(--lampone-testo); border-color: var(--lampone); font-weight: 600; }
