@@ -652,6 +652,7 @@ function vistaFonti() {
 // le pagine indice (atenei/, classi/, citta/) arrivano già scritte: si mostrano com'erano finché non si naviga altrove;
 // anche il titolo resta quello scritto (sulle pagine dei corsi è più completo di quello che farebbe l'app)
 const STATICA = window.BIVIO_STATICA ? $('#app').innerHTML : null, TITOLO_PAGINA = document.title;
+let staticaIntatta = true;
 function rotta() {
   // le pagine statiche dei corsi (corsi/<nome>.html) dicono quale corso mostrare finché non si naviga altrove
   if (!location.hash && window.BIVIO_CORSO != null) return { nome: 'corso', arg: String(window.BIVIO_CORSO) };
@@ -667,7 +668,10 @@ function disegna(inCima = true) {
   const att = document.activeElement, dentro = att && att !== app && app.contains(att);
   const chiaveFuoco = dentro ? (att.id ? `#${CSS.escape(att.id)}` : [...att.attributes].filter(a => a.name.startsWith('data-')).map(a => `[${a.name}="${CSS.escape(a.value)}"]`).join('')) : null;
   const cursore = dentro && typeof att.selectionStart === 'number' ? att.selectionStart : null;
-  app.innerHTML = (viste[nome] || vistaCasa)();
+  // la pagina indice arriva già scritta: al primo disegno non si riscrive. Sarebbe identica, ma per il browser diventerebbe
+  // un contenuto nuovo, comparso solo quando i dati sono arrivati (e Google misura quando compare il contenuto principale)
+  if (!(nome === 'statica' && staticaIntatta)) app.innerHTML = (viste[nome] || vistaCasa)();
+  if (nome !== 'statica') staticaIntatta = false;
   if (chiaveFuoco) { const el = app.querySelector(chiaveFuoco); if (el) { el.focus({ preventScroll: true }); if (cursore != null && el.setSelectionRange) try { el.setSelectionRange(cursore, cursore); } catch {} } }
   const sezione = nome === 'profilo' ? 'quiz' : nome;
   document.querySelectorAll('[data-nav]').forEach(a => a.toggleAttribute('aria-current', false) || (a.dataset.nav === sezione && a.setAttribute('aria-current', 'page')));
@@ -743,7 +747,7 @@ document.addEventListener('click', ev => {
   const p = puntoSotto(cv, ev); if (!p) return;
   S.filtri = { ...S.filtri, comune: p.comune }; S.mostrati = 60; disegna(false);
 });
-window.addEventListener('hashchange', () => {
+window.addEventListener('hashchange', () => conDati().then(() => {
   disegna(true);
   // chi sta scrivendo nella ricerca resta nella casella; negli altri casi il fuoco va al titolo della nuova pagina
   if (S.scrivendo) {
@@ -753,7 +757,7 @@ window.addEventListener('hashchange', () => {
     return;
   }
   const t = $('#app h1'); if (t) { t.setAttribute('tabindex', '-1'); t.focus({ preventScroll: true }); }
-});
+}).catch(erroreDati));
 let ridimensiona = null;
 window.addEventListener('resize', () => { clearTimeout(ridimensiona); ridimensiona = setTimeout(() => { if (rotta().nome === 'casa') disegnaMappa($('#mappa-casa'), S.corsi.filter(c => !c.fuori), { grande: true }); if ($('#mappa-esplora')) disegnaMappa($('#mappa-esplora'), trova()); }, 150); });
 
@@ -770,4 +774,9 @@ function aggiornaTema() {
 { const t = leggi('tema', null); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; aggiornaTema(); }
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', aggiornaTema);
 
-carica().then(() => disegna(true)).catch(e => { $('#app').innerHTML = `<div class="colonna vuoto"><b>Non riesco a caricare i dati.</b><span>${esc(e.message)}</span></div>`; });
+// i dati (circa 400 KB compressi) servono alla pagina iniziale, ai corsi e all'app; le pagine indice sono già scritte e li
+// scaricano solo quando si cerca o si naviga dentro l'app, così su un telefono si aprono subito
+let datiPronti = null;
+function conDati() { return datiPronti || (datiPronti = carica()); }
+function erroreDati(e) { $('#app').innerHTML = `<div class="colonna vuoto"><b>Non riesco a caricare i dati.</b><span>${esc(e.message)}</span></div>`; }
+if (!STATICA || location.hash) conDati().then(() => disegna(true)).catch(erroreDati);

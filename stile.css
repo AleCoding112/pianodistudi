@@ -342,6 +342,10 @@ table.confronto { border-collapse: separate; border-spacing: 0; width: 100%; }
 }
 @media print { .consenso, .pie-consenso { display: none !important; } }
 .caricamento { color: var(--tenue); padding: 40px 0; }
+/* mentre i dati arrivano, il posto che occuperà il contenuto: senza, il piè di pagina e le sezioni sotto il piano verrebbero
+   spinti giù quando il contenuto compare (Google lo misura: «cumulative layout shift») */
+#app > .caricamento, #app > .anteprima-casa { min-height: 100vh; }
+#piano > .caricamento { min-height: 80vh; }
 
 @media (max-width: 900px) {
   .apertura { grid-template-columns: minmax(0, 1fr); gap: 28px; }
