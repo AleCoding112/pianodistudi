@@ -1,7 +1,10 @@
 'use strict';
 /* ---------------- stato e utilità ---------------- */
+// inglese: '' | 'tutto' (solo corsi in inglese) | 'anche' (anche in parte); voglio/evito: aree di S.macro; quanto: 'niente' | 'poco'
+const filtriVuoti = () => ({ q: '', tipo: '', gruppo: '', regione: '', accesso: '', inglese: '', distanza: false, piano: false, comune: '', classe: '',
+  voglio: [], evito: [], quanto: 'niente', esame: '' });
 const S = { corsi: [], atenei: {}, diz: {}, macro: [], motivi: {}, comuni: {}, regioni: {}, piani: {}, testi: {}, dopo: {}, esami: null,
-  filtri: { q: '', tipo: '', gruppo: '', regione: '', accesso: '', inglese: false, distanza: false, piano: false, comune: '', classe: '' },
+  filtri: filtriVuoti(),
   ordine: 'pertinenza', mostrati: 60, casa: null, confronto: [], mappa: false };
 const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -79,6 +82,7 @@ async function carica() {
     const c = { i, nome: v[0], ateneo: D.ateneo[v[1]], classe: v[2], tipo: D.tipo[v[3]], area: D.area[v[4]], gruppo: D.gruppo[v[5]], comune: v[6],
       accesso: D.accesso[v[7]], didattica: D.didattica[v[8]], lingua: D.lingua[v[9]], sito: v[10], piano: v[11], fuori: !!v[12], nomeClasse: v[13], posti: v[14], comp: v[15], sitoAteneo: !!v[16] };
     c.ateneoNome = S.atenei[c.ateneo] || c.ateneo || '';
+    c.quote = c.comp ? Object.fromEntries(c.comp.split('.').map(p => [p.slice(0, 3), +p.slice(3)])) : null;
     const x = S.comuni[c.comune];
     // anche la lingua e la didattica a distanza: «medicina in inglese», «ingegneria gestionale online»
     c.cerca = ' ' + norma([c.nome, c.ateneoNome, (ind.alias || {})[c.ateneo], cittaDi(c), x ? x[1] : '', regioneDi(c), c.classe, c.nomeClasse,
@@ -160,7 +164,14 @@ function trova() {
     if (f.classe && c.classe !== f.classe) return false;
     if (f.accesso === 'libero' && !(c.accesso || '').startsWith('libero')) return false;
     if (f.accesso === 'programmato' && !(c.accesso || '').startsWith('programmato')) return false;
-    if (f.inglese && !/Inglese/.test(c.lingua || '')) return false;
+    if (f.inglese === 'tutto' ? c.lingua !== 'Inglese' : f.inglese && !/Inglese/.test(c.lingua || '')) return false;
+    if (f.voglio.length || f.evito.length) {
+      // dalle quote degli esami obbligatori: senza piano non si sa, e il corso non si mostra
+      if (!c.quote) return false;
+      if (f.evito.some(k => (c.quote[k] || 0) > (f.quanto === 'poco' ? MAX_POCO : 0))) return false;
+      if (f.voglio.length && piace(c) < MIN_PIACE) return false;
+    }
+    if (f.esame && S.esami && !corsiConEsame(f.esame).has(c.i)) return false;
     if (f.distanza && !/distanza/i.test(c.didattica || '')) return false;
     if (f.piano && !c.piano) return false;
     return parole.every(forme => forme.some(p => c.cerca.includes(p)));
@@ -176,8 +187,36 @@ function trova() {
   };
   if (S.ordine === 'distanza' && S.casa) r.sort((a, b) => (distanzaDi(a) ?? 1e9) - (distanzaDi(b) ?? 1e9));
   else if (S.ordine === 'nome') r.sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
-  else r.sort((a, b) => punti(b) - punti(a) || (S.casa ? (distanzaDi(a) ?? 1e9) - (distanzaDi(b) ?? 1e9) : 0) || a.nome.localeCompare(b.nome, 'it'));
+  else r.sort((a, b) => punti(b) - punti(a) || piace(b) - piace(a) || (S.casa ? (distanzaDi(a) ?? 1e9) - (distanzaDi(b) ?? 1e9) : 0) || a.nome.localeCompare(b.nome, 'it'));
   return r;
+}
+// «materie che ti piacciono»: quanta parte dei crediti obbligatori è nelle aree scelte (le quote sotto il 3% non sono nell'indice)
+const MIN_PIACE = 20, MAX_POCO = 10;
+const piace = c => S.filtri.voglio.reduce((t, k) => t + (c.quote?.[k] || 0), 0);
+// «con un esame di»: l'intelligenza artificiale si scrive in tanti modi, e «ai» da solo è spesso una preposizione
+// («applicata ai beni culturali», «dai 12 ai 18 anni»): conta se non è seguita da un plurale italiano e non chiude un «da … ai»
+const IA_CERCATA = new Set(['ai', 'ia', 'a i', 'intelligenza artificiale', 'artificial intelligence']);
+const IA_FRASI = /intelligenz[ae] artificial|artificial intelligence|machine learning|deep learning|apprendimento automatico|reti neurali|neural network|large language model/;
+function esameIA(n) {
+  if (IA_FRASI.test(n)) return true;
+  const w = n.split(' ');
+  return w.some((x, k) => x === 'ai'
+    && !(k && /^(applicat|introduzion|access|contrast|adattament|orientat|approcci|educazion|support)/.test(w[k - 1]))
+    && !w.slice(0, k).some(y => /^(dai|dagli|dalle|dal|dalla|dallo|dall)$/.test(y))
+    && !(w[k + 1] && ((/i$/.test(w[k + 1]) && !/^i+$/.test(w[k + 1])) || /^(media|caregiver|big|new)$/.test(w[k + 1]))));
+}
+const esameCercato = { q: null, corsi: null };
+function corsiConEsame(q) {
+  // corso → fino a tre nomi d'esame trovati nel suo piano (obbligatori o a scelta, in tutti i curricula)
+  q = norma(q);
+  if (esameCercato.q === q) return esameCercato.corsi;
+  const E = S.esami, ia = IA_CERCATA.has(q), parole = q.split(' '), corsi = new Map();
+  for (let k = 0; k < E.nomi.length; k++) {
+    if (ia ? !esameIA(E.norme[k]) : !parole.every(p => E.norme[k].includes(p))) continue;
+    for (const i of E.corsi[k]) { const l = corsi.get(i) || []; if (l.length < 3) l.push(E.nomi[k]); corsi.set(i, l); }
+  }
+  Object.assign(esameCercato, { q, corsi });
+  return corsi;
 }
 function conteggio(campo, valoreDi) {
   const m = new Map();
@@ -262,23 +301,45 @@ function vistaEsplora() {
   const regioni = conteggio(null, regioneDi).map(x => x[0]).sort((a, b) => a.localeCompare(b, 'it'));
   const gruppi = conteggio('gruppo').map(x => x[0]).sort((a, b) => a.localeCompare(b, 'it'));
   const tipi = conteggio('tipo');
-  const attivi = ['tipo', 'gruppo', 'regione', 'accesso', 'inglese', 'distanza', 'piano', 'comune', 'classe'].filter(k => f[k]).length;
+  const attivi = ['tipo', 'gruppo', 'regione', 'accesso', 'inglese', 'distanza', 'piano', 'comune', 'classe', 'voglio', 'evito', 'esame'].filter(k => Array.isArray(f[k]) ? f[k].length : f[k]).length;
+  const aree = S.macro.filter(([k]) => k !== 'alt');
+  const chipArea = (lista, k, nome) => `<button type="button" class="scelta-btn" data-area="${k}" data-lista="${lista}" aria-pressed="${f[lista].includes(k)}">${esc(nome)}</button>`;
+  const esameIn = f.esame && S.esami ? corsiConEsame(f.esame) : null;
+  const note = [f.voglio.length || f.evito.length ? 'solo corsi di cui conosciamo gli esami obbligatori' : '',
+    esameIn && IA_CERCATA.has(norma(f.esame)) ? 'esami di intelligenza artificiale, machine learning, deep learning, reti neurali' : '',
+    f.esame && !S.esami ? 'carico gli esami…' : ''].filter(Boolean);
+  const riga = c => rigaCorso(c, esameIn && esameIn.has(c.i) ? `<div class="esami-trovati">${esc(esameIn.get(c.i).map(titoloCorso).join(' · '))}</div>` : '');
   const titolo = f.classe ? `Classe ${esc(f.classe)}` : f.comune ? `Corsi a ${esc(S.comuni[f.comune]?.[0] || '')}` : f.q ? `«${esc(f.q)}»` : f.gruppo ? esc(f.gruppo) : f.tipo === 'primo' ? 'Corsi dopo il diploma' : 'Tutti i corsi';
   return `<div class="colonna esplora">
-    <aside class="filtri" id="filtri" aria-label="Filtri">
+    <aside class="filtri${S.filtriAperti ? ' aperti' : ''}" id="filtri" aria-label="Filtri">
       <fieldset><legend>Tipo di laurea</legend><div class="scelte">
         <button type="button" class="scelta-btn" data-filtro="tipo" data-valore="" aria-pressed="${!f.tipo}">Tutti</button>
         <button type="button" class="scelta-btn" data-filtro="tipo" data-valore="primo" aria-pressed="${f.tipo === 'primo'}">Dopo il diploma</button>
         ${tipi.map(([t, n]) => `<button type="button" class="scelta-btn" data-filtro="tipo" data-valore="${esc(t)}" aria-pressed="${f.tipo === t}">${TIPI_BREVI[t] || esc(t)}<small>${fmt(n)}</small></button>`).join('')}
       </div></fieldset>
       <fieldset><legend>Area</legend><select id="f-gruppo" data-filtro-select="gruppo" aria-label="Area"><option value="">Tutte le aree</option>${gruppi.map(g => `<option ${f.gruppo === g ? 'selected' : ''}>${esc(g)}</option>`).join('')}</select></fieldset>
+      <fieldset><legend>Materie che ti piacciono</legend>
+        <p class="nota-filtro">Corsi in cui pesano almeno il ${MIN_PIACE}% degli esami obbligatori, prima quelli in cui pesano di più.</p>
+        <div class="scelte">${aree.map(([k, n]) => chipArea('voglio', k, n)).join('')}</div>
+      </fieldset>
+      <fieldset><legend>Materie da evitare</legend>
+        <div class="scelte">${aree.map(([k, n]) => chipArea('evito', k, n)).join('')}</div>
+        ${f.evito.length ? `<div class="scelte">${[['niente', 'Per niente'], ['poco', `Al massimo il ${MAX_POCO}%`]].map(([v, t]) => `<button type="button" class="scelta-btn" data-filtro="quanto" data-valore="${v}" aria-pressed="${f.quanto === v}">${t}</button>`).join('')}</div>
+        <p class="nota-filtro">${f.quanto === 'poco' ? `Al massimo il ${MAX_POCO}% dei crediti` : 'Meno del 3% dei crediti'} degli esami obbligatori (del primo curriculum, se ce n’è più di uno). Fra gli esami a scelta possono esserci.</p>` : ''}
+      </fieldset>
+      <fieldset><legend>Con un esame di</legend>
+        <input id="f-esame" type="search" value="${esc(f.esame)}" placeholder="Per esempio: intelligenza artificiale" autocomplete="off" aria-label="Con un esame di">
+        <p class="nota-filtro">Cerca nei piani degli esami, anche fra gli esami a scelta.</p>
+      </fieldset>
       <fieldset><legend>Regione</legend><select id="f-regione" data-filtro-select="regione" aria-label="Regione"><option value="">Tutta Italia</option>${regioni.map(g => `<option ${f.regione === g ? 'selected' : ''}>${esc(g)}</option>`).join('')}</select></fieldset>
       <fieldset><legend>Accesso</legend><div class="scelte">
         ${[['', 'Tutti'], ['libero', 'Libero'], ['programmato', 'Numero programmato']].map(([v, t]) => `<button type="button" class="scelta-btn" data-filtro="accesso" data-valore="${v}" aria-pressed="${f.accesso === v}">${t}</button>`).join('')}
       </div></fieldset>
+      <fieldset><legend>Lingua</legend><div class="scelte">
+        ${[['', 'Tutte'], ['tutto', 'Solo in inglese'], ['anche', 'Anche in parte in inglese']].map(([v, t]) => `<button type="button" class="scelta-btn" data-filtro="inglese" data-valore="${v}" aria-pressed="${f.inglese === v}">${t}</button>`).join('')}
+      </div></fieldset>
       <fieldset><legend>Altro</legend>
         <label class="interruttore"><input type="checkbox" id="f-piano" data-filtro-check="piano" ${f.piano ? 'checked' : ''}> Solo con il piano degli esami</label>
-        <label class="interruttore"><input type="checkbox" id="f-inglese" data-filtro-check="inglese" ${f.inglese ? 'checked' : ''}> Insegnato in inglese</label>
         <label class="interruttore"><input type="checkbox" id="f-distanza" data-filtro-check="distanza" ${f.distanza ? 'checked' : ''}> A distanza (telematico)</label>
       </fieldset>
       ${attivi ? '<button type="button" class="btn" data-azione="azzera">Togli i filtri</button>' : ''}
@@ -286,16 +347,16 @@ function vistaEsplora() {
     <section>
       <form class="cerca-esplora solo-telefono" role="search"><label class="campo">${ICONA_CERCA}<input id="cerca-esplora" type="search" value="${esc(f.q)}" placeholder="Cerca corso, ateneo o città" autocomplete="off" aria-label="Cerca un corso, un ateneo o una città"></label></form>
       <div class="barra-risultati">
-        <div><h1>${titolo}</h1><p class="tenue piccolo num" role="status">${fmt(r.length)} corsi${f.comune || f.classe ? ' · <a href="#esplora" data-azione="azzera">tutti i corsi</a>' : ''}${f.q && interpreta(f.q).corrette.length ? ` · cerco anche «${esc(interpreta(f.q).corrette.join(' '))}»` : ''}</p></div>
+        <div><h1>${titolo}</h1><p class="tenue piccolo num" role="status">${fmt(r.length)} corsi${f.comune || f.classe ? ' · <a href="#esplora" data-azione="azzera">tutti i corsi</a>' : ''}${f.q && interpreta(f.q).corrette.length ? ` · cerco anche «${esc(interpreta(f.q).corrette.join(' '))}»` : ''}${note.map(t => ' · ' + esc(t)).join('')}</p></div>
         <div class="destra">
-          <button type="button" class="btn mostra-filtri" data-azione="mostra-filtri" aria-controls="filtri">Filtri${attivi ? ` (${attivi})` : ''}</button>
+          <button type="button" class="btn mostra-filtri" data-azione="mostra-filtri" aria-controls="filtri" aria-expanded="${!!S.filtriAperti}">Filtri${attivi ? ` (${attivi})` : ''}</button>
           <button type="button" class="btn" data-azione="mappa" aria-pressed="${S.mappa}">Mappa</button>
           <select id="ordine" aria-label="Ordina" style="width:auto"><option value="pertinenza" ${S.ordine === 'pertinenza' ? 'selected' : ''}>Più pertinenti</option><option value="distanza" ${S.ordine === 'distanza' ? 'selected' : ''} ${S.casa ? '' : 'disabled'}>Più vicini${S.casa ? '' : ' (scegli da dove parti)'}</option><option value="nome" ${S.ordine === 'nome' ? 'selected' : ''}>Per nome</option></select>
         </div>
       </div>
       <div style="margin-bottom:14px">${campoCasa()}</div>
       ${S.mappa ? '<div class="mappa-esplora"><canvas id="mappa-esplora" aria-label="Mappa dei corsi trovati"></canvas><div class="fumetto" id="fumetto" hidden></div></div>' : ''}
-      ${r.length ? `<div class="elenco">${r.slice(0, S.mostrati).map(rigaCorso).join('')}</div>${r.length > S.mostrati ? `<div class="altri"><button type="button" class="btn" data-azione="altri">Mostra altri ${fmt(Math.min(60, r.length - S.mostrati))}</button></div>` : ''}`
+      ${r.length ? `<div class="elenco">${r.slice(0, S.mostrati).map(riga).join('')}</div>${r.length > S.mostrati ? `<div class="altri"><button type="button" class="btn" data-azione="altri">Mostra altri ${fmt(Math.min(60, r.length - S.mostrati))}</button></div>` : ''}`
         : `<div class="vuoto"><b>Nessun corso con questi filtri.</b><span>Prova a togliere un filtro o a cercare con meno parole.</span><button type="button" class="btn" data-azione="azzera">Togli i filtri</button></div>`}
     </section>
   </div>`;
@@ -416,7 +477,7 @@ function sezioneAltrove(c) {
   if (!altri.length) return '';
   altri.sort((a, b) => S.casa ? (distanzaDi(a) ?? 1e9) - (distanzaDi(b) ?? 1e9) : a.ateneoNome.localeCompare(b.ateneoNome, 'it'));
   return `<section class="sezione altrove"><h2>Lo stesso tipo di corso altrove <small>${fmt(altri.length)} corsi della classe ${esc(c.classe)}${S.casa ? ', dal più vicino' : ''}</small></h2>
-    <div class="elenco">${altri.slice(0, 6).map(rigaCorso).join('')}</div>
+    <div class="elenco">${altri.slice(0, 6).map(c => rigaCorso(c)).join('')}</div>
     <div class="altri"><a class="btn" href="${PAGINE ? pagClasse(c.classe) : '#esplora'}" data-classe-link="${esc(c.classe)}">Vedi tutti i ${fmt(altri.length + 1)}</a></div></section>`;
 }
 
@@ -651,7 +712,7 @@ function risultatiMaterie() {
     <div><p class="tenue piccolo" style="margin-bottom:8px">${fmt(trovati.length)} nomi d'esame${trovati.length > 40 ? ', i 40 più diffusi' : ''}</p>
       <div class="nomi-materia">${trovati.slice(0, 40).map(k => `<button type="button" data-materia="${k}" aria-pressed="${statoMaterie.scelta === k}">${esc(titoloCorso(E.nomi[k]))}<span>${fmt(E.corsi[k].length)}</span></button>`).join('')}</div></div>
     <div><p class="tenue piccolo" style="margin-bottom:8px">${fmt(corsi.length)} corsi${statoMaterie.scelta != null ? ` con «${esc(titoloCorso(E.nomi[statoMaterie.scelta]))}»` : ''}${S.casa ? ', dal più vicino' : ''}</p>
-      <div class="elenco">${corsi.slice(0, 80).map(rigaCorso).join('')}</div></div>
+      <div class="elenco">${corsi.slice(0, 80).map(c => rigaCorso(c)).join('')}</div></div>
   </div>`;
 }
 async function caricaEsami() {
@@ -769,6 +830,9 @@ document.addEventListener('input', ev => {
   if (t.id === 'cerca-testata' || t.id === 'cerca-casa' || t.id === 'cerca-esplora') {
     clearTimeout(attesa);
     attesa = setTimeout(() => { S.filtri = { ...S.filtri, q: t.value, comune: '', classe: '' }; S.mostrati = 60; if (S.casa && t.value) S.ordine = 'pertinenza'; S.scrivendo = rotta().nome !== 'esplora'; vai('#esplora'); }, 260);
+  } else if (t.id === 'f-esame') {
+    clearTimeout(attesa);
+    attesa = setTimeout(async () => { S.filtri.esame = norma(t.value).length >= 2 ? t.value : ''; S.mostrati = 60; if (S.filtri.esame && !S.esami) { disegna(false); await caricaEsami(); } if (rotta().nome === 'esplora') disegna(false); }, 400);
   } else if (t.id === 'casa') riempiComuni(t.value);
   else if (t.id === 'cerca-materia') {
     clearTimeout(attesa);
@@ -786,7 +850,7 @@ document.addEventListener('change', ev => {
 });
 document.addEventListener('submit', ev => { ev.preventDefault(); const i = ev.target.querySelector('input'); if (ev.target.id === 'form-casa') { S.filtri = { ...S.filtri, q: i.value, comune: '', classe: '' }; vai('#esplora'); } });
 document.addEventListener('click', ev => {
-  const b = ev.target.closest('[data-esempio],[data-gruppo],[data-filtro],[data-azione],[data-percorso],[data-preset],[data-gruppo-link],[data-classe-link],[data-materia]');
+  const b = ev.target.closest('[data-esempio],[data-gruppo],[data-filtro],[data-azione],[data-percorso],[data-preset],[data-gruppo-link],[data-classe-link],[data-materia],[data-area]');
   if (!b) return;
   if (b.tagName === 'A' && (b.dataset.gruppoLink || b.dataset.classeLink || b.dataset.preset || b.dataset.azione === 'azzera')) ev.preventDefault();
   if (b.dataset.esempio) { S.filtri = { ...S.filtri, q: b.dataset.esempio, comune: '', classe: '', gruppo: '' }; S.mostrati = 60; vai('#esplora'); }
@@ -794,14 +858,20 @@ document.addEventListener('click', ev => {
   else if (b.dataset.classeLink) { S.filtri = { ...S.filtri, classe: b.dataset.classeLink, q: '', comune: '', gruppo: '', tipo: '' }; S.mostrati = 60; vai('#esplora'); }
   else if (b.dataset.preset) { S.filtri = { ...S.filtri, tipo: b.dataset.preset, q: '', comune: '', classe: '' }; S.mostrati = 60; vai('#esplora'); }
   else if (b.dataset.filtro) { S.filtri[b.dataset.filtro] = b.dataset.valore; S.mostrati = 60; disegna(false); }
+  else if (b.dataset.area) {
+    // un'area sta in una lista sola: sceglierla fra le preferite la toglie da quelle da evitare, e viceversa
+    const k = b.dataset.area, l = b.dataset.lista, altra = l === 'voglio' ? 'evito' : 'voglio';
+    S.filtri[l] = S.filtri[l].includes(k) ? S.filtri[l].filter(x => x !== k) : [...S.filtri[l], k];
+    S.filtri[altra] = S.filtri[altra].filter(x => x !== k); S.mostrati = 60; disegna(false);
+  }
   else if (b.dataset.percorso) { statoPiano.percorso = +b.dataset.percorso; riempiPiano(S.corsi[+rotta().arg]); }
   else if (b.dataset.materia) { statoMaterie.scelta = statoMaterie.scelta === +b.dataset.materia ? null : +b.dataset.materia; $('#risultati-materia').innerHTML = risultatiMaterie(); }
   else {
     const a = b.dataset.azione;
     if (a === 'altri') { S.mostrati += 60; disegna(false); }
     else if (a === 'altri-dopo') { statoDopo.mostrati += 30; disegna(false); }
-    else if (a === 'azzera') { S.filtri = { q: '', tipo: '', gruppo: '', regione: '', accesso: '', inglese: false, distanza: false, piano: false, comune: '', classe: '' }; S.mostrati = 60; vai('#esplora'); }
-    else if (a === 'mostra-filtri') $('#filtri').classList.toggle('aperti');
+    else if (a === 'azzera') { S.filtri = filtriVuoti(); S.mostrati = 60; vai('#esplora'); }
+    else if (a === 'mostra-filtri') { S.filtriAperti = $('#filtri').classList.toggle('aperti'); b.setAttribute('aria-expanded', S.filtriAperti); } // resta aperto ai ridisegni
     else if (a === 'mappa') { S.mappa = !S.mappa; disegna(false); }
     else if (a === 'tema') { const t = temaScuro() ? 'light' : 'dark'; document.documentElement.dataset.theme = t; salva('tema', t); aggiornaTema(); }
     else if (a === 'vai-anno') { const el = document.getElementById('anno-' + b.dataset.anno); if (el) el.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); }

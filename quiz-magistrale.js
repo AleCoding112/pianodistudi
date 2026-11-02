@@ -326,7 +326,7 @@ function schermataCondMag() {
       ${condMag('dove', 'Dove studieresti?', [[0, `Vicino a casa (entro ${KM_VICINO} km)`], [1, 'Nella mia regione'], [2, 'Ovunque in Italia']])}
       ${QM.cond.dove < 2 ? `<div class="cond-casa">${campoCasa()}</div>` : ''}
       ${condMag('test', 'Magistrali a numero programmato', [[1, 'Va bene, ci provo'], [0, 'Preferisco evitarle']], 'Hanno una selezione per entrare, con un numero di posti (molte di Psicologia e delle professioni sanitarie).')}
-      ${condMag('inglese', 'Magistrali in inglese', [[1, 'Anche in inglese'], [0, 'Solo in italiano']], 'Sono circa una su quattro.')}
+      ${condMag('inglese', 'Magistrali in inglese', [[1, 'Anche in inglese'], [2, 'Solo in inglese'], [0, 'Solo in italiano']], 'Sono circa una su quattro.')}
       ${condMag('online', 'Università telematiche (lezioni online)', [[0, 'No'], [1, 'Sì, anche online']])}
     </div>
     ${navMag(true, 'Continua')}
@@ -375,7 +375,7 @@ function risultatoMag() {
   const svelati = (QM.cand || []).map((g, n) => QM.assaggi[n] != null && g[QM.assaggi[n]] != null ? S.mag.curr[g[QM.assaggi[n]]] : null).filter(Boolean);
   const senzaCasa = QM.cond.dove < 2 && !S.casa;
   const cond = [senzaCasa ? '' : QM.cond.dove === 0 ? `entro ${KM_VICINO} km da casa` : QM.cond.dove === 1 ? 'nella tua regione' : '', QM.cond.test ? '' : 'senza numero programmato',
-    QM.cond.inglese ? '' : 'in italiano', QM.cond.online ? 'anche online' : 'non telematiche'].filter(Boolean);
+    QM.cond.inglese === 2 ? 'tutte in inglese' : QM.cond.inglese ? '' : 'in italiano', QM.cond.online ? 'anche online' : 'non telematiche'].filter(Boolean);
   return `<div class="colonna risultato-mag">
     <p class="eyebrow-profilo">Il tuo risultato</p>
     <h1 tabindex="-1">Le magistrali per te</h1>

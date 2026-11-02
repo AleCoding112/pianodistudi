@@ -190,6 +190,7 @@ function quoteCorso(i) {
 function corsoAdatto(c, cond) {
   if (!cond.test && (c.accesso || '').startsWith('programmato')) return false;
   if (!cond.inglese && c.lingua === 'Inglese') return false;
+  if (cond.inglese === 2 && c.lingua !== 'Inglese') return false; // «solo in inglese»: non i corsi in parte in italiano
   if (!cond.online && /distanza/i.test(c.didattica || '')) return false;
   return true;
 }
@@ -769,7 +770,7 @@ function schedaLaurea(v, posizione, R, r) {
       <a href="#corso.${ese.i}">Il piano completo di questo corso →</a></details>` : ''}
     <div class="laurea-corsi">
       <p class="piccolo"><b>${c.dentro ? `Corsi ${dove || 'per te'}` : 'I corsi più vicini'}</b>${dove && !c.dentro ? ` <span class="tenue">· nessuno ${esc(dove)}</span>` : ''} <span class="tenue">· dal piano più vicino ai tuoi gusti</span></p>
-      <div class="elenco">${c.lista.map(rigaCorso).join('')}</div>
+      <div class="elenco">${c.lista.map(x => rigaCorso(x)).join('')}</div>
       ${v.sanitarie ? `<a class="btn" href="#esplora" data-classe-link="${esc(cl.classe)}">Tutti i ${fmt(x.corsi.length)} corsi di ${esc(nomePercorso(cl))}</a>`
         : `<button type="button" class="btn" data-esempio="${esc(titolo)}">Cerca «${esc(titolo)}» fra tutti i corsi</button>`}
     </div>

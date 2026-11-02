@@ -203,6 +203,9 @@ select { appearance: none; -webkit-appearance: none; height: 40px; border: 1px s
 .composizione i { display: block; height: 100%; border-radius: 2px; }
 .area-top { display: inline-flex; align-items: center; gap: 6px; font-size: .78rem; color: var(--tenue); max-width: 190px; text-align: left; line-height: 1.3; }
 .area-top i { flex: none; width: 8px; height: 8px; border-radius: 2px; }
+.nota-filtro { font-size: .8rem; color: var(--tenue); margin: -2px 0 2px; line-height: 1.4; }
+.filtri input[type="search"] { width: 100%; }
+.esami-trovati { font-size: .82rem; color: var(--lampone-testo); margin-top: 4px; }
 .senza-piano { font-size: .78rem; color: var(--tenue); }
 .altri { display: flex; justify-content: center; padding: 24px 0; }
 .vuoto { padding: 48px 0; text-align: center; color: var(--tenue); display: grid; gap: 10px; justify-items: center; }
