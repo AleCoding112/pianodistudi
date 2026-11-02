@@ -746,7 +746,7 @@ function schedaLaurea(v, posizione, R, r) {
   const c = corsiDaMostrare(x, r, R.s), camp = cl.campione, ese = camp && S.corsi[camp.corso];
   const dove = r.cond.dove < 2 && S.casa ? (r.cond.dove === 0 ? `entro ${KM_VICINO} km da casa` : 'nella tua regione') : '';
   const titolo = v.sanitarie ? 'Professioni sanitarie' : nomePercorso(cl);
-  const sotto = v.sanitarie ? `${v.classi.length === 1 ? '1 percorso' : `${v.classi.length} percorsi`} · lauree triennali abilitanti, a numero programmato`
+  const sotto = v.sanitarie ? `${v.classi.length === 1 ? '1 professione' : `${v.classi.length} professioni`} · lauree triennali abilitanti, a numero programmato`
     : `${classiDi(cl)} · ${cl.tipo === 'ciclo unico' ? `Ciclo unico, ${/LM-41|LM-46/.test(cl.classe) ? 6 : 5} anni` : 'Triennale'} · ${fmt(x.corsi.length)} corsi in Italia`;
   const nomi = cl.nomiComuni.filter(([n]) => norma(n) !== norma(titolo)).slice(0, 3).map(([n]) => `«${esc(n)}»`);
   const primissima = v === R.voci[0];
