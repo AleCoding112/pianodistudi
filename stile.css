@@ -228,6 +228,11 @@ select { appearance: none; -webkit-appearance: none; height: 40px; border: 1px s
 .settori-top { margin: 10px 0 0; font-size: .82rem; line-height: 1.7; }
 .settori-top .codice { font-size: .78rem; }
 .nowrap { white-space: nowrap; }
+.trasferimento { margin-top: 40px; }
+.scelte-trasf { display: flex; flex-wrap: wrap; gap: 10px 16px; margin: 12px 0 16px; }
+.scelte-trasf label { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px; flex: 1 1 260px; min-width: 0; }
+.scelte-trasf select { width: 100%; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+table.trasf td { vertical-align: top; }
 .avviso-requisiti { max-width: 70ch; margin: 0 0 16px; }
 .azioni-errore { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
 .mappa-esplora { position: relative; border: 1px solid var(--linea); border-radius: var(--r); background: var(--foglio); margin-bottom: 18px; overflow: hidden; }

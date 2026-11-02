@@ -907,7 +907,61 @@ function vistaConfronta() {
       <thead><tr><th scope="col"><span class="tenue piccolo">${corsi.length} di 3</span></th>${corsi.map(c => `<th scope="col"><a href="#corso.${c.i}">${esc(nomeIntero(c))}</a><div style="margin-top:8px"><button type="button" class="btn" data-azione="confronto" data-i="${c.i}">Togli</button></div></th>`).join('')}</tr></thead>
       <tbody>${righe.map(([n, f]) => `<tr><th scope="row">${n}</th>${corsi.map(c => `<td>${f(c)}</td>`).join('')}</tr>`).join('')}</tbody>
     </table></div>
-    <p class="tenue piccolo" style="margin-top:12px">«Di cosa è fatto» somma i crediti degli esami obbligatori per area disciplinare, dai settori scientifici indicati nel piano.</p></div>`;
+    <p class="tenue piccolo" style="margin-top:12px">«Di cosa è fatto» somma i crediti degli esami obbligatori per area disciplinare, dai settori scientifici indicati nel piano.</p>
+    ${corsi.length >= 2 ? sezioneTrasferimento(corsi) : ''}</div>`;
+}
+
+/* ---------------- se passi da un corso all'altro ---------------- */
+// per chi pensa a un trasferimento: gli esami obbligatori del corso di partenza e, per ciascuno, quelli del corso di
+// arrivo nello stesso gruppo di settori scientifici (le commissioni riconoscono i crediti guardando il settore e i
+// crediti). I codici vecchi (SECS-P/07) e nuovi (ECON-06/A) si confrontano con la stessa traduzione del quiz per la
+// magistrale (dati/magistrali.json, da raccolta/magistrali.py); dove non è sicura, conta il codice com'è
+const statoTrasf = { da: null, a: null };
+function sezioneTrasferimento(corsi) {
+  // un trasferimento è fra corsi dello stesso tipo (da una triennale a un'altra triennale)
+  const conPiano = corsi.filter(c => c.piano && corsi.some(x => x !== c && x.piano && x.tipo === c.tipo));
+  if (conPiano.length < 2) return '';
+  if (!conPiano.some(c => c.i === statoTrasf.da)) statoTrasf.da = conPiano[0].i;
+  const arrivi = conPiano.filter(c => c.i !== statoTrasf.da && c.tipo === S.corsi[statoTrasf.da].tipo);
+  if (!arrivi.some(c => c.i === statoTrasf.a)) statoTrasf.a = arrivi[0].i;
+  const da = S.corsi[statoTrasf.da], a = S.corsi[statoTrasf.a];
+  const scelta = (id, val, lista) => `<select id="${id}">${lista.map(c => `<option value="${c.i}" ${c.i === val ? 'selected' : ''}>${esc(nomeIntero(c))} · ${esc(c.ateneoNome)}</option>`).join('')}</select>`;
+  const testa = `<section class="sezione trasferimento"><h2>Se passi da un corso all’altro</h2>
+    <p class="tenue">Per ogni esame obbligatorio del corso da cui parti, gli esami del corso di arrivo dello stesso settore scientifico. Non è un riconoscimento: i crediti li riconosce la commissione del corso di arrivo, esame per esame, guardando soprattutto il settore e i crediti.</p>
+    <div class="scelte-trasf"><label>Da ${scelta('trasf-da', da.i, conPiano)}</label><label>a ${scelta('trasf-a', a.i, arrivi)}</label></div>`;
+  if (!S.piani[da.ateneo] || !S.piani[a.ateneo] || !S.mag) {
+    Promise.all([pianiDi(da.ateneo), pianiDi(a.ateneo), caricaMagistrali()]).then(() => { if (rotta().nome === 'confronta') disegna(false); }).catch(mostraErrore);
+    return testa + '<p class="caricamento">Carico i due piani…</p></section>';
+  }
+  const gruppo = k => { const x = S.mag.settori[k]; return x && x[0] >= 0 ? S.mag.gruppi[x[0]] : k; };
+  const esamiDi = (c, soloObbligatori) => {
+    const d = S.piani[c.ateneo], p = d.corsi[c.piano].p[0], visti = new Set(), out = [];
+    for (const [, blocchi] of p[1]) for (const b of blocchi) {
+      if (b.x || (soloObbligatori && b.s)) continue;
+      for (const k of b.i || []) {
+        const e = esameDa(d.esami[k]); if (visti.has(k) || !e.cfu) continue; visti.add(k);
+        out.push({ ...e, scelta: !!b.s, gruppi: [...new Set(e.settori.map(s => gruppo(s.k)))] });
+      }
+    }
+    return { esami: out, curricula: d.corsi[c.piano].p.length, nome: p[0] };
+  };
+  const A = esamiDi(da, true), B = esamiDi(a, false);
+  const perGruppo = new Map();
+  for (const e of B.esami) for (const g of e.gruppi) (perGruppo.get(g) || perGruppo.set(g, []).get(g)).push(e);
+  const conSettore = A.esami.filter(e => e.gruppi.length), tot = conSettore.reduce((s, e) => s + e.cfu, 0);
+  const inComune = conSettore.filter(e => e.gruppi.some(g => perGruppo.has(g))).reduce((s, e) => s + e.cfu, 0);
+  const stessaClasse = da.classe && da.classe === a.classe;
+  const riga = e => {
+    const simili = [...new Set(e.gruppi.flatMap(g => perGruppo.get(g) || []))];
+    return `<tr><td>${esc(titoloCorso(e.nome))}<div class="tenue piccolo">${e.settori.map(s => esc(s.k)).join(' + ') || 'settore non indicato'}</div></td><td class="num">${fmt(e.cfu)}</td>
+      <td>${!e.gruppi.length ? '<span class="tenue">—</span>' : simili.length ? simili.slice(0, 4).map(x => `${esc(titoloCorso(x.nome))} <span class="tenue num">${fmt(x.cfu)} CFU${x.scelta ? ', a scelta' : ''}</span>`).join('<br>') + (simili.length > 4 ? `<br><span class="tenue">e altri ${simili.length - 4}</span>` : '') : '<span class="tenue">nessuno nello stesso settore</span>'}</td></tr>`;
+  };
+  return testa + `
+    <p><b>${tot ? `${fmt(Math.round(100 * inComune / tot))}%` : '—'}</b> dei crediti obbligatori di ${esc(nomeIntero(da))} (${esc(da.ateneoNome)}) sono in settori che ci sono anche nel piano di ${esc(nomeIntero(a))} (${esc(a.ateneoNome)}): ${fmt(Math.round(inComune))} CFU su ${fmt(Math.round(tot))}${A.esami.length > conSettore.length ? `, senza contare ${A.esami.length - conSettore.length} esami di cui il piano non dice il settore` : ''}.</p>
+    ${stessaClasse ? `<p class="nota">I due corsi sono della stessa classe (${esc(da.classe)}): in questo caso la legge chiede che almeno metà dei crediti già ottenuti in ciascun settore sia riconosciuta direttamente (per le lauree, DM 16 marzo 2007, art. 3, comma 9; se il corso di partenza è a distanza, solo se è accreditato).</p>` : ''}
+    ${A.curricula > 1 || B.curricula > 1 ? `<p class="tenue piccolo">Per i corsi con più curricula si usa il primo (${esc(titoloCorso(A.nome))}; ${esc(titoloCorso(B.nome))}).</p>` : ''}
+    <div class="tabella-scorre"><table class="confronto trasf"><thead><tr><th scope="col">Esame obbligatorio di partenza</th><th scope="col">CFU</th><th scope="col">Esami dello stesso settore nel corso di arrivo</th></tr></thead>
+    <tbody>${A.esami.map(riga).join('')}</tbody></table></div></section>`;
 }
 
 /* ---------------- fonti e note ---------------- */
@@ -1027,6 +1081,7 @@ document.addEventListener('change', ev => {
   else if (t.dataset.filtroCheck) { S.filtri[t.dataset.filtroCheck] = t.checked; S.mostrati = 60; disegna(false); }
   else if (t.id === 'ordine') { S.ordine = t.value; disegna(false); }
   else if (t.id === 'ordine-dopo') { statoDopo.ordine = t.value; statoDopo.mostrati = 30; disegna(false); }
+  else if (t.id === 'trasf-da' || t.id === 'trasf-a') { statoTrasf[t.id === 'trasf-da' ? 'da' : 'a'] = +t.value; disegna(false); }
   else if (t.id === 'regione-dopo') { statoDopo.regione = t.value; statoDopo.mostrati = 30; disegna(false); }
 });
 document.addEventListener('submit', ev => { ev.preventDefault(); const i = ev.target.querySelector('input'); if (ev.target.id === 'form-casa') { S.filtri = { ...S.filtri, q: i.value, comune: '', classe: '' }; vai('#esplora'); } });
