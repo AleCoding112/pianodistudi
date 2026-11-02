@@ -203,8 +203,19 @@ select { appearance: none; -webkit-appearance: none; height: 40px; border: 1px s
 .composizione i { display: block; height: 100%; border-radius: 2px; }
 .area-top { display: inline-flex; align-items: center; gap: 6px; font-size: .78rem; color: var(--tenue); max-width: 190px; text-align: left; line-height: 1.3; }
 .area-top i { flex: none; width: 8px; height: 8px; border-radius: 2px; }
+.titolo-laureati { font-size: 1rem; margin: 18px 0 8px; }
+.titolo-laureati small { font-family: var(--f-testo); font-weight: 400; color: var(--tenue); font-size: .88rem; margin-left: 6px; }
+.cifre-laureati { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); background: var(--foglio); border: 1px solid var(--linea); border-radius: var(--r); overflow: hidden; }
+/* linee fra le celle senza riempire le celle vuote dell'ultima riga: i bordi in alto e a sinistra escono dal riquadro */
+.cifre-laureati > div { padding: 12px 14px; display: grid; gap: 2px; align-content: start; border-left: 1px solid var(--linea); border-top: 1px solid var(--linea); margin: -1px 0 0 -1px; }
+.cifre-laureati b { font-family: var(--f-titoli); font-size: 1.55rem; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.cifre-laureati span { font-size: .88rem; line-height: 1.35; }
+.cifre-laureati small { color: var(--tenue); font-size: .78rem; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.laureati .nota { max-width: 75ch; }
 .nota-filtro { font-size: .8rem; color: var(--tenue); margin: -2px 0 2px; line-height: 1.4; }
 .filtri input[type="search"] { width: 100%; }
+.nota-filtro.forte { color: inherit; font-weight: 600; margin-top: 6px; }
+.quota-scelta { font-size: .82rem; color: var(--tenue); margin-top: 4px; }
 .esami-trovati { font-size: .82rem; color: var(--lampone-testo); margin-top: 4px; }
 .senza-piano { font-size: .78rem; color: var(--tenue); }
 .altri { display: flex; justify-content: center; padding: 24px 0; }
