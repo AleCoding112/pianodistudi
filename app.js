@@ -4,7 +4,7 @@
 // (%) delle aree volute negli esami obbligatori; quanto: 'niente' | 'poco' per le aree da escludere
 const filtriVuoti = () => ({ q: '', tipo: '', gruppo: '', regione: '', accesso: '', inglese: '', distanza: false, piano: false, comune: '', classe: '',
   voglio: [], peso: 50, evito: [], quanto: 'niente', esame: '' });
-const S = { corsi: [], atenei: {}, diz: {}, macro: [], motivi: {}, comuni: {}, regioni: {}, piani: {}, testi: {}, dopo: {}, esami: null,
+const S = { corsi: [], atenei: {}, diz: {}, macro: [], settori: [], motivi: {}, comuni: {}, regioni: {}, piani: {}, testi: {}, dopo: {}, esami: null,
   filtri: filtriVuoti(),
   ordine: 'pertinenza', mostrati: 60, casa: null, confronto: [], mappa: false };
 const $ = (s, el = document) => el.querySelector(s);
@@ -29,6 +29,8 @@ const PAGINE = !!document.querySelector('link[rel="canonical"]');
 const pagClasse = cl => `classi/${norma(cl).replace(/ /g, '-')}.html`;
 const TIPI_BREVI = { 'triennale': 'Triennale', 'magistrale': 'Magistrale', 'ciclo unico': 'Ciclo unico' };
 const DURATA = { 'triennale': 3, 'magistrale': 2, 'ciclo unico': 5 };
+// la durata di un corso: quella di Universitaly (nell'indice); senza, quella del tipo, e 6 anni per Medicina e Odontoiatria
+const durataDi = c => c.durata || (c.tipo === 'ciclo unico' && /^LM-4[16]\b/.test(c.classe || '') ? 6 : DURATA[c.tipo]);
 const TAF = { A: 'base', B: 'caratterizzante', C: 'affine', D: 'a scelta', E: 'prova finale e lingua', F: 'altre attività', S: 'tirocinio' };
 
 function titoloCorso(n) {
@@ -50,16 +52,12 @@ function km(a, b) {
 function distanzaDi(c) { return S.casa ? km(S.casa, c.comune) : null; }
 function testoDistanza(d) { return d == null ? '' : d < 1 ? 'nel tuo comune' : `${fmt(Math.round(d))} km`; }
 function colore(m) { return `var(--a-${m || 'alt'})`; }
+// l'area di un settore scientifico: la tabella è quella del quiz (raccolta/settori.py), arriva con l'indice
 function macroDi(settore) {
-  const regole = [['eco', /^(ECON|SECS-P|STEC)/], ['mat', /^(STAT|SECS-S|MATH|MAT\/)/], ['giu', /^(GIUR|IUS)/],
-    ['inf', /^(IINF|INFO|INF\/|ING-INF|IIND|ING-IND|IMAT|IEGE|IBIO)/], ['arc', /^(CEAR|ICAR)/], ['fis', /^(PHYS|FIS\/|CHEM|CHIM|GEOS|GEO\/)/],
-    ['bio', /^(BIOS|BIO\/|MEDS|MED\/|MEDF|M-EDF)/], ['agr', /^(AGRI|AGR\/|MVET|VET\/)/],
-    ['let', /^(ITAL|LATI|HELL|LICO|LIFI|ANGL|SPAN|FRAN|GERM|FLMR|FICP|SLAV|STAA|L-FIL|L-LIN|L-OR|L-ANT|LIRO|ARAB)/],
-    ['sto', /^(HIST|M-STO|ARCH|STAN|PHIL|M-FIL|L-ART|ARTE|PEMM|ICHI|SAAR)/], ['psi', /^(PSIC|M-PSI|PAED|M-PED|EDUC)/], ['soc', /^(GSPS|SPS|GEOG|M-GGR|SDEA|M-DEA)/]];
-  for (const [k, rx] of regole) if (rx.test(settore || '')) return k;
+  for (const [rx, k] of S.settori) if (rx.test(settore || '')) return k;
   return 'alt';
 }
-const nomeMacro = k => (S.macro.find(m => m[0] === k) || [k, 'Altro'])[1];
+const nomeMacro = k => (S.macro.find(m => m[0] === k) || [k, 'Area non indicata dall’ateneo'])[1];
 function barraComposizione(comp, largo) {
   if (!comp) return '';
   const parti = comp.split('.').map(p => [p.slice(0, 3), +p.slice(3)]);
@@ -84,12 +82,12 @@ async function json(url) {
 }
 async function carica() {
   const [ind, com] = await Promise.all([json('dati/indice.json'), json('dati/comuni.json')]);
-  S.diz = ind.diz; S.atenei = ind.atenei; S.macro = ind.macro; S.motivi = ind.motivi; S.comuni = com.comuni; S.regioni = com.regioni; S.aggiornato = ind.aggiornato;
+  S.diz = ind.diz; S.atenei = ind.atenei; S.macro = ind.macro; S.settori = (ind.settori || []).map(([r, k]) => [new RegExp(r), k]); S.motivi = ind.motivi; S.comuni = com.comuni; S.regioni = com.regioni; S.aggiornato = ind.aggiornato;
   const d = $('#aggiornato'); if (d && S.aggiornato) d.textContent = dataLunga(S.aggiornato);
   const D = ind.diz;
   S.corsi = ind.corsi.map((v, i) => {
     const c = { i, nome: v[0], ateneo: D.ateneo[v[1]], classe: v[2], tipo: D.tipo[v[3]], area: D.area[v[4]], gruppo: D.gruppo[v[5]], comune: v[6],
-      accesso: D.accesso[v[7]], didattica: D.didattica[v[8]], lingua: D.lingua[v[9]], sito: v[10], piano: v[11], fuori: !!v[12], nomeClasse: v[13], posti: v[14], comp: v[15], sitoAteneo: !!v[16] };
+      accesso: D.accesso[v[7]], didattica: D.didattica[v[8]], lingua: D.lingua[v[9]], sito: v[10], piano: v[11], fuori: !!v[12], nomeClasse: v[13], posti: v[14], comp: v[15], sitoAteneo: !!v[16], durata: v[17] };
     c.ateneoNome = S.atenei[c.ateneo] || c.ateneo || '';
     c.quote = c.comp ? Object.fromEntries(c.comp.split('.').map(p => [p.slice(0, 3), +p.slice(3)])) : null;
     const x = S.comuni[c.comune];
@@ -479,7 +477,7 @@ function vistaCorso(i) {
       </div>
     </div>
     <dl class="fatti">
-      <div><dt>Tipo</dt><dd>${TIPI_BREVI[c.tipo] || esc(c.tipo || '—')}${c.tipo ? `, ${DURATA[c.tipo] || ''} anni` : ''}</dd></div>
+      <div><dt>Tipo</dt><dd>${TIPI_BREVI[c.tipo] || esc(c.tipo || '—')}${durataDi(c) ? `, ${durataDi(c)} anni` : ''}</dd></div>
       <div><dt>Classe</dt><dd><span class="codice">${esc(c.classe || '—')}</span>${c.nomeClasse ? `<div class="tenue piccolo" style="font-weight:400">${esc(c.nomeClasse)}</div>` : ''}</dd></div>
       <div><dt>Accesso</dt><dd>${esc(accesso)}${c.accesso === 'incerto' ? '<div class="tenue piccolo" style="font-weight:400">Ministero e ateneo non dicono la stessa cosa (libero o a numero programmato): vale quanto scritto sul sito del corso.</div>' : ''}${semestreFiltro(c) ? '<div class="tenue piccolo" style="font-weight:400">Con il «semestre filtro»: ci si iscrive liberamente al primo semestre, poi si prosegue in base agli esami e alla graduatoria nazionale.</div>' : ''}</dd></div>
       <div><dt>Lingua</dt><dd>${esc(c.lingua || '—')}</dd></div>
@@ -551,10 +549,11 @@ function htmlPiano(c, p, tabella) {
       : b.esami.filter(e => e.cfu).map(e => (cfu += e.cfu, `<span class="cella" style="--cfu:${e.cfu};--c:${colore(e.macro)}" title="${esc(`${e.nome} · ${e.cfu} CFU`)}"></span>`)));
     return `<div class="anno-striscia"><button type="button" class="lbl" data-azione="vai-anno" data-anno="${a.anno}">${a.anno}° anno</button><div class="celle">${celle.join('')}</div><span class="tot">${fmt(Math.round(cfu))} CFU</span></div>`;
   }).join('');
-  const atteso = { triennale: 180, magistrale: 120, 'ciclo unico': (c.classe || '').match(/LM-41|LM-46/) ? 360 : 300 }[c.tipo];
+  // i crediti del titolo: 60 per ogni anno di corso
+  const durata = durataDi(c), atteso = durata ? 60 * durata : null;
   const fonte = p.f || {};
   // alcune fonti pubblicano gli anni di una coorte uno alla volta: lo si dice, invece di lasciar credere che il piano finisca lì
-  const ultimo = Math.max(0, ...tuttiAnni.map(a => a.anno || 0)), durata = (c.classe || '').match(/LM-41|LM-46/) ? 6 : DURATA[c.tipo];
+  const ultimo = Math.max(0, ...tuttiAnni.map(a => a.anno || 0));
   // se la coorte 2026/27 non è ancora pubblicata si mostra la più recente, e lo si dice chiaramente
   const vecchio = fonte.anno && !String(fonte.anno).startsWith('2026')
     ? `<p class="nota avviso">Questo è il piano di chi si è iscritto nel ${esc(fonte.anno)}: l’ateneo non ha ancora pubblicato quello per chi si iscrive nel 2026/27, che può essere diverso.</p>` : '';
@@ -572,7 +571,7 @@ function htmlPiano(c, p, tabella) {
       tot += b.c || 0; totMax += b.m || b.c || 0;
     } else { const t = b.esami.reduce((s, e) => s + (e.cfu || 0), 0); tot += t; totMax += t; obbligatori += t; }
   }
-  const pieno = (c.classe || '').match(/LM-41|LM-46/) ? 360 : atteso;
+  const pieno = atteso;
   let conti = '';
   const incompleto = presenti.size && durata && presenti.size < durata;
   if (pieno && obbligatori < pieno / 2 && inGruppiSenzaCrediti >= pieno - obbligatori && !incompleto) {
@@ -591,7 +590,7 @@ function htmlPiano(c, p, tabella) {
       ? `<p class="nota avviso">Qui ${ultimo === 1 ? 'c’è solo il 1° anno' : `ci sono solo i primi ${ultimo} anni`}: per ora il catalogo dell’ateneo pubblica solo questi. Il piano completo è nel regolamento del corso.</p>`
       : `<p class="nota avviso">Qui manca${mancanti.length > 1 ? 'no' : ''} ${mancanti.map(n => `il ${n}° anno`).join(' e ')}: il catalogo dell’ateneo non ${mancanti.length > 1 ? 'li' : 'lo'} pubblica. Il piano completo è nel regolamento del corso.</p>`;
   return `<section class="sezione">
-    <h2>Il piano degli esami <small>${atteso ? `${atteso} <abbr title="crediti formativi universitari: un anno di studio ne vale 60">CFU</abbr> in ${DURATA[c.tipo] || ''} anni` : ''}${fonte.anno ? ` · ${String(fonte.anno).startsWith('2026') ? 'per chi si iscrive nel' : 'piano di chi si è iscritto nel'} ${esc(String(fonte.anno).replace(/^(\d{4})\/\d{2}(\d{2})$/, '$1/$2'))}` : ''}</small></h2>
+    <h2>Il piano degli esami <small>${atteso ? `${atteso} <abbr title="crediti formativi universitari: un anno di studio ne vale 60">CFU</abbr> in ${durata} anni` : ''}${fonte.anno ? ` · ${String(fonte.anno).startsWith('2026') ? 'per chi si iscrive nel' : 'piano di chi si è iscritto nel'} ${esc(String(fonte.anno).replace(/^(\d{4})\/\d{2}(\d{2})$/, '$1/$2'))}` : ''}</small></h2>
     ${p.p.length > 1 ? `<div class="percorsi" role="group" aria-label="Curriculum">${p.p.map(([n], k) => `<button type="button" class="scelta-btn" data-percorso="${k}" aria-pressed="${k === statoPiano.percorso}">${esc(titoloCorso(n))}</button>`).join('')}</div>` : ''}
     ${righe ? `<div class="striscia" role="img" aria-label="Crediti per anno, colorati per area disciplinare">${righe}</div><div class="legenda">${legenda}</div>` : ''}
     ${vecchio}${parziale}${conti ? `<p class="nota avviso">${conti}</p>` : ''}
