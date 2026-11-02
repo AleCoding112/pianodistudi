@@ -400,8 +400,9 @@ function risultatoMag() {
       ${no.length ? `<p><span class="segno-meno">${SEGNO_MENO}</span>Non ti sono piaciuti: ${esc(elenco(no.slice(0, 6)))}${no.length > 6 ? ` e altri ${no.length - 6}` : ''}.</p>` : ''}
       ${svelati.length ? `<p>Alla cieca hai scelto: ${svelati.map(m => `<a href="#corso.${m.i}">${esc(titoloCorso(S.corsi[m.i].nome))}</a> (${esc(S.corsi[m.i].ateneoNome)})`).join(' e ')}.</p>` : ''}
       ${senzaCasa ? '<p class="nota avviso">Non hai detto da dove parti: le magistrali sono di tutta Italia. Puoi sceglierlo tornando alle condizioni.</p>' : ''}
-      <p class="tenue piccolo">Mostriamo solo magistrali ${esc(elenco(cond))}. In cima ci sono quelle che uniscono meglio quello che hai studiato e quello che ti è piaciuto${QM.dir === 2 ? ': hai scelto di cambiare strada, quindi conta soprattutto cosa ti attira' : QM.dir === 0 ? ': hai scelto di approfondire, quindi conta soprattutto quanto somigliano alla tua triennale' : ''}. Non dicono se puoi iscriverti: i requisiti d’accesso li decide ogni ateneo, e li trovi nella pagina della magistrale.</p>
+      <p class="tenue piccolo">Mostriamo solo magistrali ${esc(elenco(cond))}. In cima ci sono quelle che uniscono meglio quello che hai studiato e quello che ti è piaciuto${QM.dir === 2 ? ': hai scelto di cambiare strada, quindi conta soprattutto cosa ti attira' : QM.dir === 0 ? ': hai scelto di approfondire, quindi conta soprattutto quanto somigliano alla tua triennale' : ''}.</p>
     </div>
+    ${AVVISO_REQUISITI}
     ${lista.length ? `<div class="elenco">${lista.slice(0, QM.mostrati).map(x => rigaCorso(x.c, percheMag(x, R))).join('')}</div>
       ${lista.length > QM.mostrati ? `<div class="altri"><button type="button" class="btn" data-m="altre">Mostra altre ${Math.min(10, lista.length - QM.mostrati)}</button></div>` : ''}`
       : '<div class="vuoto"><b>Nessuna magistrale con queste condizioni.</b><span>Prova ad allargare la zona o ad accettare le magistrali a numero programmato o in inglese.</span><button type="button" class="btn" data-m="vai" data-i="3">Cambia le condizioni</button></div>'}

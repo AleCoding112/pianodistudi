@@ -228,6 +228,18 @@ function corsiConEsame(q) {
   Object.assign(esameCercato, { q, corsi });
   return corsi;
 }
+// le classi di un'area del Ministero, dalla più numerosa, con il loro nome (quello più comune fra i corsi) e quanti corsi
+// ci sono, del tipo scelto nei filtri
+function classiDelGruppo(g) {
+  const f = S.filtri, m = new Map();
+  for (const c of S.corsi) {
+    if (c.gruppo !== g || c.fuori || !c.classe || (f.tipo && !(f.tipo === 'primo' ? c.tipo !== 'magistrale' : c.tipo === f.tipo))) continue;
+    const x = m.get(c.classe) || { n: 0, nomi: new Map() };
+    x.n++; if (c.nomeClasse) x.nomi.set(c.nomeClasse, (x.nomi.get(c.nomeClasse) || 0) + 1);
+    m.set(c.classe, x);
+  }
+  return [...m.entries()].map(([cl, x]) => [cl, [...x.nomi.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || cl, x.n]).sort((a, b) => b[2] - a[2]);
+}
 function conteggio(campo, valoreDi) {
   const m = new Map();
   for (const c of S.corsi) { const v = valoreDi ? valoreDi(c) : c[campo]; if (v) m.set(v, (m.get(v) || 0) + 1); }
@@ -351,7 +363,10 @@ function filtriEsplora() {
       <fieldset><legend>Regione</legend><select id="f-regione" data-filtro-select="regione" aria-label="Regione"><option value="">Tutta Italia</option>${regioni.map(g => `<option ${f.regione === g ? 'selected' : ''}>${esc(g)}</option>`).join('')}</select></fieldset>
       <fieldset><legend>Accesso</legend>${scelte('accesso', [['', 'Tutti'], ['libero', 'Libero'], ['programmato', 'Numero programmato']])}</fieldset>
       <fieldset><legend>Area del Ministero</legend><select id="f-gruppo" data-filtro-select="gruppo" aria-label="Area del Ministero"><option value="">Tutte le aree</option>${gruppi.map(g => `<option ${f.gruppo === g ? 'selected' : ''}>${esc(g)}</option>`).join('')}</select>
-        <p class="nota-filtro">La classificazione ufficiale dei corsi: vale anche per quelli senza piano degli esami.</p></fieldset>
+        <p class="nota-filtro">La classificazione ufficiale dei corsi: vale anche per quelli senza piano degli esami.</p>
+        ${f.gruppo ? `<p class="nota-filtro forte">Le classi di laurea dell’area</p><div class="scelte classi-area">
+          <button type="button" class="scelta-btn" data-filtro="classe" data-valore="" aria-pressed="${!f.classe}">Tutte</button>
+          ${classiDelGruppo(f.gruppo).map(([cl, nome, n]) => `<button type="button" class="scelta-btn" data-filtro="classe" data-valore="${esc(cl)}" aria-pressed="${f.classe === cl}" title="${esc(cl)}">${esc(nome)}<small>${fmt(n)}</small></button>`).join('')}</div>` : ''}</fieldset>
       <fieldset><legend>Altro</legend>
         <label class="interruttore"><input type="checkbox" id="f-piano" data-filtro-check="piano" ${f.piano ? 'checked' : ''}> Solo con il piano degli esami</label>
         <label class="interruttore"><input type="checkbox" id="f-distanza" data-filtro-check="distanza" ${f.distanza ? 'checked' : ''}> A distanza (telematico)</label>
@@ -552,6 +567,17 @@ function htmlPiano(c, p, tabella) {
     const s = e.settori.filter(x => x.n); if (s.length) s.forEach(x => quote[macroDi(x.k)] = (quote[macroDi(x.k)] || 0) + x.n); else quote[e.macro] = (quote[e.macro] || 0) + e.cfu;
   }
   const totQ = Object.values(quote).reduce((a, b) => a + b, 0) || 1;
+  // e per settore: un corso può essere fatto quasi tutto di pochi settori anche con esami dai nomi diversi
+  const perSettore = {};
+  for (const a of tuttiAnni) for (const b of a.blocchi) if (!b.s && !b.x) for (const e of b.esami) {
+    if (!e.cfu || !e.settori.length) continue;
+    const s = e.settori.filter(x => x.n);
+    if (s.length) s.forEach(x => { perSettore[x.k] = (perSettore[x.k] || 0) + x.n; });
+    else e.settori.forEach(x => { perSettore[x.k] = (perSettore[x.k] || 0) + e.cfu / e.settori.length; });
+  }
+  const conSettore = Object.values(perSettore).reduce((a, b) => a + b, 0);
+  const primiSettori = Object.entries(perSettore).sort((a, b) => b[1] - a[1]).filter(([, v]) => v / conSettore >= .05).slice(0, 6);
+  const settoriTop = conSettore >= 30 && primiSettori.length ? `<p class="settori-top"><span class="tenue">I settori con più crediti obbligatori${conSettore < .9 * totObb ? ' (fra gli esami di cui il piano dice il settore)' : ''}:</span> ${primiSettori.map(([k, v]) => `<span class="nowrap"><span class="codice" title="${esc(nomeMacro(macroDi(k)))}">${esc(k)}</span> ${Math.round(100 * v / conSettore)}%</span>`).join(' · ')}</p>` : '';
   const legenda = Object.entries(quote).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<span><i style="--c:${colore(k)}"></i>${esc(nomeMacro(k))} <span class="tenue num">${Math.round(100 * v / totQ)}%</span></span>`).join('') + '<span><i class="scelta"></i>Esami a scelta</span>';
   const legendaIgnoti = '<span><i class="ignota"></i>A scelta, crediti non indicati</span>';
   // la striscia: per ogni anno gli obbligatori e i gruppi a scelta con i crediti indicati; gli esami che si possono fare
@@ -624,7 +650,7 @@ function htmlPiano(c, p, tabella) {
   return `<section class="sezione">
     <h2>Il piano degli esami <small>${atteso ? `${atteso} <abbr title="crediti formativi universitari: un anno di studio ne vale 60">CFU</abbr> in ${durata} anni` : ''}${fonte.anno ? ` · ${String(fonte.anno).startsWith('2026') ? 'per chi si iscrive nel' : 'piano di chi si è iscritto nel'} ${esc(String(fonte.anno).replace(/^(\d{4})\/\d{2}(\d{2})$/, '$1/$2'))}` : ''}</small></h2>
     ${p.p.length > 1 ? `<div class="percorsi" role="group" aria-label="Curriculum">${p.p.map(([n], k) => `<button type="button" class="scelta-btn" data-percorso="${k}" aria-pressed="${k === statoPiano.percorso}">${esc(titoloCorso(n))}</button>`).join('')}</div>` : ''}
-    ${righe ? `<div class="striscia" role="img" aria-label="Crediti per anno, colorati per area disciplinare">${righe}</div><div class="legenda">${legenda}${ignoti ? legendaIgnoti : ''}</div>` : ''}
+    ${righe ? `<div class="striscia" role="img" aria-label="Crediti per anno, colorati per area disciplinare">${righe}</div><div class="legenda">${legenda}${ignoti ? legendaIgnoti : ''}</div>${settoriTop}` : ''}
     ${vecchio}${parziale}${conti ? `<p class="nota avviso">${conti}</p>` : ''}
     ${tuttiAnni.map(a => htmlAnno(a)).join('')}
     <div class="fonte"><span>Fonte: ${esc(fonte.nome || '—')}${fonte.anno ? `, piano ${esc(fonte.anno)}` : ''}. ${fonte.nota ? esc(fonte.nota) : ''}</span>${fonte.url ? `<a href="${esc(fonte.url)}" target="_blank" rel="noopener">Apri la fonte<span class="vh"> (si apre in una nuova scheda)</span> ↗</a>` : ''}</div>
@@ -679,8 +705,11 @@ const maiuscolaIniziale = t => t ? t.charAt(0).toUpperCase() + t.slice(1).toLowe
 function htmlEsame(e) {
   const lingua = e.lingua && !/^italian/i.test(e.lingua) ? maiuscolaIniziale(e.lingua) : '';
   const info = [periodoBello(e.periodo), lingua === 'Inglese' ? 'in inglese' : lingua].filter(Boolean);
+  // il settore scientifico (con i crediti, se l'esame ne ha più d'uno): chi confronta corsi diversi vede le stesse
+  // materie anche quando gli esami si chiamano in modo diverso
+  const settori = e.settori.map(s => `<span class="codice" title="${esc(nomeMacro(macroDi(s.k)))}">${esc(s.k)}${e.settori.length > 1 && s.n ? ` ${fmt(s.n)}` : ''}</span>`).join(' + ');
   return `<li class="esame"><span class="pallino" style="--c:${colore(e.macro)}" aria-hidden="true"></span><span class="nome">${esc(titoloCorso(e.nome))}</span><span class="cfu">${e.cfu != null ? `${fmt(e.cfu)} CFU` : ''}</span>
-    ${info.length ? `<span class="info">${info.map(x => `<span>${esc(x)}</span>`).join('')}</span>` : ''}
+    ${info.length || settori ? `<span class="info">${info.map(x => `<span>${esc(x)}</span>`).join('')}${settori ? `<span class="settori-esame">${settori}</span>` : ''}</span>` : ''}
     ${e.moduli ? `<span class="moduli">${e.moduli.map(([n, k]) => `<span>${esc(titoloCorso(n))}${k ? ` · ${fmt(k)} CFU` : ''}</span>`).join('')}</span>` : ''}</li>`;
 }
 function htmlTesti(x) {
@@ -701,7 +730,9 @@ async function dopoDi(c) {
 const listaDopo = c => ((S.dopo[c.ateneo] || {})[c.i] || []).map(([j, v, curr, nuovi]) => ({ c: S.corsi[j], v: v / 1000, curr: curr || null, nuovi: nuovi ? nuovi.split('.') : [] }))
   .filter(x => x.c && !x.c.fuori);
 const AFFINE = .6;  // da qui in su una magistrale si dice affine (raccolta/magistrali.py, MINIMO)
-const NOTA_DOPO = 'In ordine di affinità: quanto i loro esami somigliano a quelli di questo corso, per materia. Non dicono se puoi iscriverti: i requisiti d’accesso li decide ogni ateneo, e li trovi nella pagina della magistrale.';
+const NOTA_DOPO = 'In ordine di affinità: quanto i loro esami somigliano a quelli di questo corso, per materia.';
+// chi legge l'elenco come «le magistrali a cui posso iscrivermi» sbaglia (segnalato da un utente): lo si dice in evidenza
+const AVVISO_REQUISITI = '<p class="nota avviso avviso-requisiti"><b>Non è l’elenco delle magistrali a cui puoi iscriverti.</b> Sono le più vicine per contenuti. Ogni magistrale ha i suoi requisiti d’accesso, decisi dall’ateneo: di solito una laurea di certe classi o un numero minimo di crediti in certi settori, a volte una prova. Se te ne mancano, spesso si possono recuperare con esami singoli prima di iscriverti. Li trovi nella pagina della magistrale, alla voce «Come si entra», e nel bando dell’ateneo.</p>';
 function rigaDopo(x, stessoAteneo) {
   const nuovi = x.nuovi.map(a => AMBITI_BREVI[a]).filter(Boolean);
   const extra = (x.curr ? `<div class="sotto-riga">Curriculum più affine: ${esc(titoloCorso(x.curr))}</div>` : '')
@@ -783,7 +814,7 @@ async function riempiDopo(c) {
   const qui = lista.filter(x => x.c.ateneo === c.ateneo && x.v >= AFFINE).slice(0, 3);
   const altrove = lista.filter(x => !qui.includes(x)).slice(0, 6);
   b.innerHTML = `<section class="sezione altrove dopo"><h2>Dopo la triennale <small>le magistrali più affini a questo corso</small></h2>
-    <p class="nota" style="max-width:70ch;margin:-6px 0 12px">${NOTA_DOPO}</p>
+    <p class="nota" style="max-width:70ch;margin:-6px 0 12px">${NOTA_DOPO}</p>${AVVISO_REQUISITI}
     ${qui.length ? `<h3 class="titolo-dopo">In questo ateneo</h3><div class="elenco">${qui.map(x => rigaDopo(x)).join('')}</div>` : ''}
     <h3 class="titolo-dopo">In tutta Italia</h3><div class="elenco">${altrove.map(x => rigaDopo(x)).join('')}</div>
     <div class="altri"><a class="btn" href="#dopo.${c.i}">Vedi tutte le ${fmt(lista.length)}</a><a class="btn primario" href="#magistrale.${c.i}">Scegli con il quiz, dagli esami di questo corso</a></div></section>`;
@@ -808,7 +839,7 @@ function vistaDopo(i) {
         <select id="ordine-dopo" aria-label="Ordina" style="width:auto"><option value="affini" ${statoDopo.ordine === 'affini' ? 'selected' : ''}>Più affini</option><option value="distanza" ${statoDopo.ordine === 'distanza' ? 'selected' : ''} ${S.casa ? '' : 'disabled'}>Più vicine${S.casa ? '' : ' (scegli da dove parti)'}</option></select>
       </div>
     </div>
-    <p class="nota" style="max-width:70ch;margin:0 0 14px">${NOTA_DOPO} Le affinità vengono dai settori scientifici degli esami obbligatori e a scelta dei piani ${ANNO_ACCADEMICO}; per le magistrali con più curricula conta il più affine.</p>
+    ${AVVISO_REQUISITI}<p class="nota" style="max-width:70ch;margin:0 0 14px">${NOTA_DOPO} Le affinità vengono dai settori scientifici degli esami obbligatori e a scelta dei piani ${ANNO_ACCADEMICO}; per le magistrali con più curricula conta il più affine.</p>
     <div style="margin-bottom:14px">${campoCasa()}</div>
     <p class="tenue piccolo num" role="status">${fmt(r.length)} magistrali${statoDopo.regione ? ` in ${esc(statoDopo.regione)}` : ''}</p>
     ${r.length ? `<div class="elenco">${r.slice(0, statoDopo.mostrati).map(x => rigaDopo(x, x.c.ateneo === c.ateneo)).join('')}</div>${r.length > statoDopo.mostrati ? `<div class="altri"><button type="button" class="btn" data-azione="altri-dopo">Mostra altre ${fmt(Math.min(30, r.length - statoDopo.mostrati))}</button></div>` : ''}`
@@ -981,7 +1012,7 @@ document.addEventListener('focusin', ev => { if (ev.target.id === 'f-esame' && !
 document.addEventListener('change', ev => {
   const t = ev.target;
   if (t.id === 'casa') impostaCasa(t.value);
-  else if (t.dataset.filtroSelect) { S.filtri[t.dataset.filtroSelect] = t.value; S.mostrati = 60; disegna(false); }
+  else if (t.dataset.filtroSelect) { S.filtri[t.dataset.filtroSelect] = t.value; if (t.dataset.filtroSelect === 'gruppo') S.filtri.classe = ''; S.mostrati = 60; disegna(false); }
   else if (t.dataset.filtroCheck) { S.filtri[t.dataset.filtroCheck] = t.checked; S.mostrati = 60; disegna(false); }
   else if (t.id === 'ordine') { S.ordine = t.value; disegna(false); }
   else if (t.id === 'ordine-dopo') { statoDopo.ordine = t.value; statoDopo.mostrati = 30; disegna(false); }

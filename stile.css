@@ -223,6 +223,12 @@ select { appearance: none; -webkit-appearance: none; height: 40px; border: 1px s
 .vuoto b { color: var(--inchiostro); font-family: var(--f-titoli); font-size: 1.15rem; }
 .variante { color: var(--tenue); font-weight: 400; }
 .variante-titolo { display: block; font-size: .55em; font-weight: 500; color: var(--tenue); margin-top: 6px; letter-spacing: 0; }
+.esame .settori-esame { font-size: .75rem; }
+.esame .settori-esame .codice { font-size: .75rem; }
+.settori-top { margin: 10px 0 0; font-size: .82rem; line-height: 1.7; }
+.settori-top .codice { font-size: .78rem; }
+.nowrap { white-space: nowrap; }
+.avviso-requisiti { max-width: 70ch; margin: 0 0 16px; }
 .azioni-errore { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
 .mappa-esplora { position: relative; border: 1px solid var(--linea); border-radius: var(--r); background: var(--foglio); margin-bottom: 18px; overflow: hidden; }
 .mappa-esplora canvas { display: block; width: 100%; height: 380px; cursor: crosshair; }
@@ -277,8 +283,8 @@ select { appearance: none; -webkit-appearance: none; height: 40px; border: 1px s
 .legenda i.scelta { background: repeating-linear-gradient(135deg, var(--a-scelta) 0 3px, transparent 3px 5px); border: 1px solid var(--a-scelta); }
 .legenda i.ignota { background: none; border: 1px dashed var(--tenue); }
 .anno { margin-top: 32px; scroll-margin-top: calc(84px + env(safe-area-inset-top, 0px)); }
-.anno > h3 { font-size: 1.25rem; display: flex; justify-content: space-between; align-items: baseline; gap: 10px; border-bottom: 2px solid var(--inchiostro); padding-bottom: 8px; }
-.anno > h3 span { font-family: var(--f-codici); font-size: .8rem; font-weight: 400; color: var(--tenue); letter-spacing: 0; }
+.anno > h3 { font-size: 1.25rem; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 2px 10px; border-bottom: 2px solid var(--inchiostro); padding-bottom: 8px; }
+.anno > h3 span { font-family: var(--f-codici); font-size: .8rem; font-weight: 400; color: var(--tenue); letter-spacing: 0; text-align: right; margin-left: auto; }
 .esami { list-style: none; margin: 0; padding: 0; }
 .esame { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; gap: 4px 12px; align-items: baseline; padding: 11px 0; border-bottom: 1px solid var(--linea); }
 .esame .pallino { width: 10px; height: 10px; border-radius: 3px; background: var(--c, var(--a-alt)); transform: translateY(1px); }
