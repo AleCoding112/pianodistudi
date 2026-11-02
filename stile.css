@@ -264,11 +264,16 @@ select { appearance: none; -webkit-appearance: none; height: 40px; border: 1px s
 .celle { display: flex; gap: 2px; height: 34px; min-width: 0; }
 .cella { flex: var(--cfu) 1 0; min-width: 3px; border-radius: 4px; background: var(--c, var(--a-alt)); position: relative; }
 .cella.scelta { background: repeating-linear-gradient(135deg, var(--a-scelta) 0 5px, transparent 5px 9px); border: 1px solid var(--a-scelta); }
+.celle .resto { flex: var(--cfu) 1 0; }
+.cella.ignota { flex: 0 0 26px; background: none; border: 1px dashed var(--tenue); display: grid; place-items: center; font-family: var(--f-codici); font-size: .72rem; color: var(--tenue); }
+.anno-striscia .lbl.due-righe { white-space: normal; line-height: 1.2; }
+.tot-striscia { margin: 2px 0 0; font-size: .82rem; color: var(--tenue); text-align: right; }
 .cella:hover { outline: 2px solid var(--inchiostro); outline-offset: 1px; z-index: 1; }
 .legenda { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 14px; font-size: .86rem; }
 .legenda span { display: inline-flex; align-items: center; gap: 6px; }
 .legenda i { width: 11px; height: 11px; border-radius: 3px; display: inline-block; background: var(--c); }
 .legenda i.scelta { background: repeating-linear-gradient(135deg, var(--a-scelta) 0 3px, transparent 3px 5px); border: 1px solid var(--a-scelta); }
+.legenda i.ignota { background: none; border: 1px dashed var(--tenue); }
 .anno { margin-top: 32px; scroll-margin-top: calc(84px + env(safe-area-inset-top, 0px)); }
 .anno > h3 { font-size: 1.25rem; display: flex; justify-content: space-between; align-items: baseline; gap: 10px; border-bottom: 2px solid var(--inchiostro); padding-bottom: 8px; }
 .anno > h3 span { font-family: var(--f-codici); font-size: .8rem; font-weight: 400; color: var(--tenue); letter-spacing: 0; }

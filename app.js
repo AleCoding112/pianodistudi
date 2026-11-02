@@ -542,13 +542,34 @@ function htmlPiano(c, p, tabella) {
   }
   const totQ = Object.values(quote).reduce((a, b) => a + b, 0) || 1;
   const legenda = Object.entries(quote).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<span><i style="--c:${colore(k)}"></i>${esc(nomeMacro(k))} <span class="tenue num">${Math.round(100 * v / totQ)}%</span></span>`).join('') + '<span><i class="scelta"></i>Esami a scelta</span>';
-  const righe = tuttiAnni.filter(a => a.anno != null).map(a => {
-    let cfu = 0;
-    const celle = a.blocchi.filter(b => !b.x).flatMap(b => b.s
-      ? (b.c ? [(cfu += b.c, `<span class="cella scelta" style="--cfu:${b.c}" title="${esc(regolaGruppo(b) + ': ' + (b.e || ''))}"></span>`)] : [])
+  const legendaIgnoti = '<span><i class="ignota"></i>A scelta, crediti non indicati</span>';
+  // la striscia: per ogni anno gli obbligatori e i gruppi a scelta con i crediti indicati; gli esami che si possono fare
+  // in qualsiasi anno in una riga a parte (dividerli fra gli anni sarebbe inventare). I gruppi di cui l'ateneo non dice
+  // quanti crediti scegliere hanno una cella con il punto di domanda, fuori dal conto
+  let ignoti = false;
+  const riga = (a, blocchi) => {
+    let cfu = 0; const senzaCfu = [];
+    const celle = blocchi.filter(b => !b.x).flatMap(b => b.s
+      ? (b.c ? [(cfu += b.c, `<span class="cella scelta" style="--cfu:${b.c}" title="${esc(regolaGruppo(b) + ': ' + (b.e || ''))}"></span>`)] : (senzaCfu.push(b), []))
       : b.esami.filter(e => e.cfu).map(e => (cfu += e.cfu, `<span class="cella" style="--cfu:${e.cfu};--c:${colore(e.macro)}" title="${esc(`${e.nome} · ${e.cfu} CFU`)}"></span>`)));
-    return `<div class="anno-striscia"><button type="button" class="lbl" data-azione="vai-anno" data-anno="${a.anno}">${a.anno}° anno</button><div class="celle">${celle.join('')}</div><span class="tot">${fmt(Math.round(cfu))} CFU</span></div>`;
-  }).join('');
+    if (senzaCfu.length) { ignoti = true; celle.push(`<span class="cella ignota" title="${esc(`A scelta, crediti non indicati dall’ateneo: ${senzaCfu.map(b => regolaGruppo(b) + (b.e ? ` (${b.e})` : '')).join('; ')}`)}">?</span>`); }
+    if (!celle.length) return null;
+    const lbl = a == null ? `<button type="button" class="lbl due-righe" data-azione="vai-anno" data-anno="qualsiasi">Qualsiasi anno</button>`
+      : `<button type="button" class="lbl" data-azione="vai-anno" data-anno="${a}">${a}° anno</button>`;
+    return { cfu, celle, lbl };
+  };
+  const chiudi = (r, scala) => {
+    const { cfu, celle, lbl } = r;
+    // le righe hanno la stessa scala: un anno da 30 crediti è lungo la metà di uno da 60
+    r.html = `<div class="anno-striscia">${lbl}<div class="celle">${celle.join('')}${scala > cfu ? `<span class="resto" style="--cfu:${scala - cfu}"></span>` : ''}</div><span class="tot">${cfu ? fmt(Math.round(cfu)) : '?'} CFU</span></div>`;
+    return r;
+  };
+  const perAnno = tuttiAnni.filter(a => a.anno != null).map(a => riga(a.anno, a.blocchi)).filter(Boolean);
+  const qualsiasi = riga(null, tuttiAnni.filter(a => a.anno == null).flatMap(a => a.blocchi));
+  const negliAnni = perAnno.reduce((s, r) => s + r.cfu, 0), tutte = [...perAnno, qualsiasi].filter(Boolean);
+  const scala = Math.max(60, ...tutte.map(r => r.cfu));
+  const righe = tutte.map(r => chiudi(r, scala).html).join('')
+    + (qualsiasi && qualsiasi.cfu && perAnno.length ? `<p class="tot-striscia">In tutto ${fmt(Math.round(negliAnni + qualsiasi.cfu))} CFU: ${fmt(Math.round(negliAnni))} nei singoli anni e ${fmt(Math.round(qualsiasi.cfu))} da fare in qualsiasi anno.</p>` : '');
   // i crediti del titolo: 60 per ogni anno di corso
   const durata = durataDi(c), atteso = durata ? 60 * durata : null;
   const fonte = p.f || {};
@@ -592,7 +613,7 @@ function htmlPiano(c, p, tabella) {
   return `<section class="sezione">
     <h2>Il piano degli esami <small>${atteso ? `${atteso} <abbr title="crediti formativi universitari: un anno di studio ne vale 60">CFU</abbr> in ${durata} anni` : ''}${fonte.anno ? ` · ${String(fonte.anno).startsWith('2026') ? 'per chi si iscrive nel' : 'piano di chi si è iscritto nel'} ${esc(String(fonte.anno).replace(/^(\d{4})\/\d{2}(\d{2})$/, '$1/$2'))}` : ''}</small></h2>
     ${p.p.length > 1 ? `<div class="percorsi" role="group" aria-label="Curriculum">${p.p.map(([n], k) => `<button type="button" class="scelta-btn" data-percorso="${k}" aria-pressed="${k === statoPiano.percorso}">${esc(titoloCorso(n))}</button>`).join('')}</div>` : ''}
-    ${righe ? `<div class="striscia" role="img" aria-label="Crediti per anno, colorati per area disciplinare">${righe}</div><div class="legenda">${legenda}</div>` : ''}
+    ${righe ? `<div class="striscia" role="img" aria-label="Crediti per anno, colorati per area disciplinare">${righe}</div><div class="legenda">${legenda}${ignoti ? legendaIgnoti : ''}</div>` : ''}
     ${vecchio}${parziale}${conti ? `<p class="nota avviso">${conti}</p>` : ''}
     ${tuttiAnni.map(a => htmlAnno(a)).join('')}
     <div class="fonte"><span>Fonte: ${esc(fonte.nome || '—')}${fonte.anno ? `, piano ${esc(fonte.anno)}` : ''}. ${fonte.nota ? esc(fonte.nota) : ''}</span>${fonte.url ? `<a href="${esc(fonte.url)}" target="_blank" rel="noopener">Apri la fonte<span class="vh"> (si apre in una nuova scheda)</span> ↗</a>` : ''}</div>
@@ -601,8 +622,11 @@ function htmlPiano(c, p, tabella) {
 function htmlAnno(a) {
   const obbl = a.blocchi.filter(b => !b.s && !b.x), gruppi = a.blocchi.filter(b => b.s || b.x);
   const cfuObb = obbl.reduce((t, b) => t + b.esami.reduce((s, e) => s + (e.cfu || 0), 0), 0);
-  return `<div class="anno"${a.anno != null ? ` id="anno-${a.anno}"` : ''}>
-    <h3>${a.anno != null ? `${a.anno}° anno` : 'In qualsiasi anno'}<span>${a.coorte && String(a.coorte) !== '2026' ? `come per gli iscritti nel ${esc(a.coorte)}/${String(+a.coorte + 1).slice(2)} · ` : ''}${cfuObb ? `${fmt(Math.round(cfuObb))} CFU obbligatori` : ''}</span></h3>
+  // anche i crediti a scelta, dove l'ateneo li indica: chi somma gli obbligatori non deve credere che l'anno finisca lì
+  const scelte = gruppi.filter(b => !b.x), cfuScelta = scelte.reduce((t, b) => t + (b.c || 0), 0), senzaCfu = scelte.some(b => !b.c);
+  const conti = [cfuObb ? `${fmt(Math.round(cfuObb))} CFU obbligatori` : '', cfuScelta ? `${fmt(Math.round(cfuScelta))} a scelta` : '', senzaCfu ? `${cfuScelta ? 'altri' : 'esami'} a scelta` : ''].filter(Boolean);
+  return `<div class="anno" id="anno-${a.anno != null ? a.anno : 'qualsiasi'}">
+    <h3>${a.anno != null ? `${a.anno}° anno` : 'In qualsiasi anno'}<span>${a.coorte && String(a.coorte) !== '2026' ? `come per gli iscritti nel ${esc(a.coorte)}/${String(+a.coorte + 1).slice(2)} · ` : ''}${conti.join(' · ')}</span></h3>
     ${obbl.length ? `<ul class="esami">${obbl.flatMap(b => b.esami).map(htmlEsame).join('')}</ul>` : ''}
     ${gruppi.map(b => `<div class="gruppo${b.x ? ' extra' : ''}">
       <div class="regola"><b>${regolaGruppo(b)}</b><span class="codice tenue">${b.esami.length ? `${b.esami.length} ${b.esami.length === 1 ? 'opzione' : 'opzioni'}` : ''}</span></div>
