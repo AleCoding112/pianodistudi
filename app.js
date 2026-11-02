@@ -90,7 +90,7 @@ async function carica() {
   const D = ind.diz;
   S.corsi = ind.corsi.map((v, i) => {
     const c = { i, nome: v[0], ateneo: D.ateneo[v[1]], classe: v[2], tipo: D.tipo[v[3]], area: D.area[v[4]], gruppo: D.gruppo[v[5]], comune: v[6],
-      accesso: D.accesso[v[7]], didattica: D.didattica[v[8]], lingua: D.lingua[v[9]], sito: v[10], piano: v[11], fuori: !!v[12], nomeClasse: v[13], posti: v[14], comp: v[15], sitoAteneo: !!v[16], durata: v[17], variante: v[18] || null };
+      accesso: D.accesso[v[7]], didattica: D.didattica[v[8]], lingua: D.lingua[v[9]], sito: v[10], piano: v[11], fuori: !!v[12], nomeClasse: v[13], posti: v[14], comp: v[15], sitoAteneo: !!v[16], durata: v[17], test: v[18] || null, variante: v[19] || null };
     c.ateneoNome = S.atenei[c.ateneo] || c.ateneo || '';
     c.quote = c.comp ? Object.fromEntries(c.comp.split('.').map(p => [p.slice(0, 3), +p.slice(3)])) : null;
     const x = S.comuni[c.comune];
@@ -407,6 +407,17 @@ function aggiornaRisultati() {
 // Medicina, Odontoiatria e Veterinaria in italiano: dal 2025/26 l'accesso nazionale passa dal «semestre filtro»
 const semestreFiltro = c => c.accesso === 'programmato nazionale' && /^LM-(41|42|46)\b/.test(c.classe || '') && c.lingua === 'Italiano';
 // accesso in parole: breve per gli elenchi, intero per la pagina del corso
+// cosa vuol dire «libero» (DM 270/2004, art. 6): senza graduatoria, ma per una triennale serve una preparazione iniziale
+// che l'ateneo di solito verifica (se non va, obblighi formativi aggiuntivi nel primo anno), per una magistrale i
+// requisiti decisi dall'ateneo e una verifica della preparazione personale. E il test, se i requisiti dell'ateneo lo nominano
+function notaAccesso(c) {
+  const p = t => `<div class="tenue piccolo" style="font-weight:400">${t}</div>`;
+  const test = c.test ? ` Per questo corso i requisiti dell’ateneo indicano il ${esc(c.test)}${/TOLC|CEnT/.test(c.test) ? ' (CISIA)' : ''}.` : '';
+  if (c.accesso === 'libero' || c.accesso === 'libero con test')
+    return p(c.tipo === 'magistrale' ? 'Senza graduatoria, ma servono i requisiti d’accesso dell’ateneo (una laurea di certe classi o crediti in certi settori) e una verifica della preparazione personale.'
+      : `Senza graduatoria. Di solito c’è una verifica delle conoscenze iniziali, che non esclude nessuno: chi non la supera ha obblighi formativi aggiuntivi da recuperare nel primo anno.${test}`);
+  return c.test ? p(test.trim()) : '';
+}
 function testoAccesso(c, intero) {
   const a = c.accesso || '';
   if (a.startsWith('programmato')) return intero ? `Numero ${a}${c.posti ? `, ${fmt(c.posti)} posti` : ''}` : `Numero programmato${c.posti ? ` · ${fmt(c.posti)} posti` : ''}`;
@@ -497,7 +508,7 @@ function vistaCorso(i) {
     <dl class="fatti">
       <div><dt>Tipo</dt><dd>${TIPI_BREVI[c.tipo] || esc(c.tipo || '—')}${durataDi(c) ? `, ${durataDi(c)} anni` : ''}</dd></div>
       <div><dt>Classe</dt><dd><span class="codice">${esc(c.classe || '—')}</span>${c.nomeClasse ? `<div class="tenue piccolo" style="font-weight:400">${esc(c.nomeClasse)}</div>` : ''}</dd></div>
-      <div><dt>Accesso</dt><dd>${esc(accesso)}${c.accesso === 'incerto' ? '<div class="tenue piccolo" style="font-weight:400">Ministero e ateneo non dicono la stessa cosa (libero o a numero programmato): vale quanto scritto sul sito del corso.</div>' : ''}${semestreFiltro(c) ? '<div class="tenue piccolo" style="font-weight:400">Con il «semestre filtro»: ci si iscrive liberamente al primo semestre, poi si prosegue in base agli esami e alla graduatoria nazionale.</div>' : ''}</dd></div>
+      <div><dt>Accesso</dt><dd>${esc(accesso)}${notaAccesso(c)}${c.accesso === 'incerto' ? '<div class="tenue piccolo" style="font-weight:400">Ministero e ateneo non dicono la stessa cosa (libero o a numero programmato): vale quanto scritto sul sito del corso.</div>' : ''}${semestreFiltro(c) ? '<div class="tenue piccolo" style="font-weight:400">Con il «semestre filtro»: ci si iscrive liberamente al primo semestre, poi si prosegue in base agli esami e alla graduatoria nazionale.</div>' : ''}</dd></div>
       <div><dt>Lingua</dt><dd>${esc(c.lingua || '—')}</dd></div>
       <div><dt>Didattica</dt><dd>${esc(c.didattica || '—')}</dd></div>
     </dl>
