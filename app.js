@@ -41,6 +41,9 @@ function titoloCorso(n) {
   return n.replace(/\s(i{1,3}|iv|vi{0,3}|ix|x)(?=$|\s*[-–(:,]|\s+(anno|modulo|parte|semestre|livello)\b)/g, m => m.toUpperCase());
 }
 const maiuscola = t => t ? t.charAt(0).toUpperCase() + t.slice(1) : t;
+// il nome del corso con ciò che lo distingue da un altro dello stesso ateneo con lo stesso nome («Farmacia — Tirana»)
+const nomeIntero = c => titoloCorso(c.nome) + (c.variante ? ` — ${c.variante}` : '');
+const htmlVariante = c => c.variante ? ` <span class="variante">· ${esc(c.variante)}</span>` : '';
 function cittaDi(c) { const x = S.comuni[c.comune]; return x ? x[0] : ''; }
 function regioneDi(c) { const x = S.comuni[c.comune]; return x ? S.regioni[x[4]] : ''; }
 function km(a, b) {
@@ -87,12 +90,12 @@ async function carica() {
   const D = ind.diz;
   S.corsi = ind.corsi.map((v, i) => {
     const c = { i, nome: v[0], ateneo: D.ateneo[v[1]], classe: v[2], tipo: D.tipo[v[3]], area: D.area[v[4]], gruppo: D.gruppo[v[5]], comune: v[6],
-      accesso: D.accesso[v[7]], didattica: D.didattica[v[8]], lingua: D.lingua[v[9]], sito: v[10], piano: v[11], fuori: !!v[12], nomeClasse: v[13], posti: v[14], comp: v[15], sitoAteneo: !!v[16], durata: v[17] };
+      accesso: D.accesso[v[7]], didattica: D.didattica[v[8]], lingua: D.lingua[v[9]], sito: v[10], piano: v[11], fuori: !!v[12], nomeClasse: v[13], posti: v[14], comp: v[15], sitoAteneo: !!v[16], durata: v[17], variante: v[18] || null };
     c.ateneoNome = S.atenei[c.ateneo] || c.ateneo || '';
     c.quote = c.comp ? Object.fromEntries(c.comp.split('.').map(p => [p.slice(0, 3), +p.slice(3)])) : null;
     const x = S.comuni[c.comune];
     // anche la lingua e la didattica a distanza: «medicina in inglese», «ingegneria gestionale online»
-    c.cerca = ' ' + norma([c.nome, c.ateneoNome, (ind.alias || {})[c.ateneo], cittaDi(c), x ? x[1] : '', regioneDi(c), c.classe, c.nomeClasse,
+    c.cerca = ' ' + norma([c.nome, c.variante, c.ateneoNome, (ind.alias || {})[c.ateneo], cittaDi(c), x ? x[1] : '', regioneDi(c), c.classe, c.nomeClasse,
       /Inglese/.test(c.lingua || '') ? 'inglese english' : '', /distanza/i.test(c.didattica || '') ? 'online telematica distanza' : ''].join(' '));
     return c;
   });
@@ -402,7 +405,7 @@ function rigaCorso(c, extra = '') {
   const accesso = testoAccesso(c, false);
   return `<a class="riga" href="#corso.${c.i}">
     <div style="min-width:0">
-      <div class="titolo-riga">${esc(titoloCorso(c.nome))}</div>
+      <div class="titolo-riga">${esc(titoloCorso(c.nome))}${htmlVariante(c)}</div>
       <div class="sotto-riga">${esc(c.ateneoNome)}${cittaDi(c) ? ` · ${esc(cittaDi(c))}` : ''}</div>${extra}
       <div class="etichette">
         ${c.classe ? `<span class="etichetta codice" title="${esc(c.nomeClasse || '')}">${esc(c.classe)}</span>` : ''}
@@ -468,7 +471,7 @@ function vistaCorso(i) {
     <nav class="briciole" aria-label="Percorso"><a href="#esplora">Corsi</a><span>/</span>${c.gruppo ? `<a href="#esplora" data-gruppo-link="${esc(c.gruppo)}">${esc(c.gruppo)}</a><span>/</span>` : ''}${c.classe && PAGINE ? `<a href="${pagClasse(c.classe)}">${esc(c.classe)}</a>` : `<span>${esc(c.classe || '')}</span>`}</nav>
     <div class="testa-corso">
       <div>
-        <h1>${esc(titoloCorso(c.nome))}</h1>
+        <h1>${esc(titoloCorso(c.nome))}${c.variante ? `<span class="variante-titolo">${esc(maiuscola(c.variante))}</span>` : ''}</h1>
         <p class="ateneo">${PAGINE ? `<a href="atenei/${esc(c.ateneo)}.html">${esc(c.ateneoNome)}</a>` : esc(c.ateneoNome)}${cittaDi(c) ? ` · ${esc(cittaDi(c))}` : ''}${distanzaDi(c) != null ? ` <span class="tenue">· ${distanzaDi(c) < 1 ? 'nel tuo comune' : `a ${testoDistanza(distanzaDi(c))} da casa`}</span>` : ''}</p>
       </div>
       <div class="azioni">
@@ -483,6 +486,7 @@ function vistaCorso(i) {
       <div><dt>Lingua</dt><dd>${esc(c.lingua || '—')}</dd></div>
       <div><dt>Didattica</dt><dd>${esc(c.didattica || '—')}</dd></div>
     </dl>
+    ${gemelli(c)}
     <div id="piano">${c.piano ? '<p class="caricamento">Carico il piano degli esami…</p>' : sezioneSenzaPiano(c)}</div>
     <div id="testi"></div>
     <div id="laureati"></div>
@@ -495,6 +499,13 @@ function sezioneSenzaPiano(c) {
   return `<section class="sezione"><h2>Piano degli esami</h2>
     <p class="nota avviso">${m ? `Non disponibile: ${esc(m.motivo)}.` : 'Non disponibile: l’ateneo non lo pubblica nelle pagine da cui raccogliamo i piani.'} ${c.sito ? (c.sitoAteneo ? `Cercalo sul <a href="${esc(c.sito)}" target="_blank" rel="noopener">sito dell’ateneo</a>.` : `Lo trovi sul <a href="${esc(c.sito)}" target="_blank" rel="noopener">sito del corso</a>.`) : ''}</p>
   </section>`;
+}
+// altri corsi dello stesso ateneo con lo stesso nome, classe e città, che nemmeno le fonti distinguono: lo si dice
+function gemelli(c) {
+  const g = S.corsi.filter(x => x !== c && x.ateneo === c.ateneo && x.classe === c.classe && x.comune === c.comune && norma(x.nome) === norma(c.nome) && (x.variante || '') === (c.variante || ''));
+  if (!g.length) return '';
+  return `<p class="nota avviso">In questo ateneo, nella stessa città, c’è ${g.length === 1 ? 'un altro corso' : `altri ${g.length} corsi`} con lo stesso nome e la stessa classe:
+    ${g.map((x, n) => `<a href="#corso.${x.i}">${g.length === 1 ? 'apri l’altro corso' : `altro corso ${n + 1}`}</a>`).join(', ')}. Le fonti ufficiali non dicono in cosa sono diversi: confronta i piani degli esami e controlla sul sito del corso.</p>`;
 }
 function sezioneAltrove(c) {
   if (!c.classe) return '';
@@ -851,7 +862,7 @@ function vistaConfronta() {
   ];
   return `<div class="colonna"><h1 style="margin-bottom:16px">Confronta</h1>
     <div class="tabella-scorre"><table class="confronto">
-      <thead><tr><th scope="col"><span class="tenue piccolo">${corsi.length} di 3</span></th>${corsi.map(c => `<th scope="col"><a href="#corso.${c.i}">${esc(titoloCorso(c.nome))}</a><div style="margin-top:8px"><button type="button" class="btn" data-azione="confronto" data-i="${c.i}">Togli</button></div></th>`).join('')}</tr></thead>
+      <thead><tr><th scope="col"><span class="tenue piccolo">${corsi.length} di 3</span></th>${corsi.map(c => `<th scope="col"><a href="#corso.${c.i}">${esc(nomeIntero(c))}</a><div style="margin-top:8px"><button type="button" class="btn" data-azione="confronto" data-i="${c.i}">Togli</button></div></th>`).join('')}</tr></thead>
       <tbody>${righe.map(([n, f]) => `<tr><th scope="row">${n}</th>${corsi.map(c => `<td>${f(c)}</td>`).join('')}</tr>`).join('')}</tbody>
     </table></div>
     <p class="tenue piccolo" style="margin-top:12px">«Di cosa è fatto» somma i crediti degli esami obbligatori per area disciplinare, dai settori scientifici indicati nel piano.</p></div>`;
@@ -933,7 +944,7 @@ function disegnaRotta(inCima) {
   const sezione = nome === 'profilo' || nome === 'magistrale' ? 'quiz' : nome;
   document.querySelectorAll('[data-nav]').forEach(a => a.toggleAttribute('aria-current', false) || (a.dataset.nav === sezione && a.setAttribute('aria-current', 'page')));
   const n = $('#n-confronto'); n.hidden = !S.confronto.length; n.textContent = S.confronto.length;
-  document.title = !location.hash && (STATICA || window.BIVIO_CORSO != null) ? TITOLO_PAGINA : nome === 'corso' && S.corsi[+arg] ? `${titoloCorso(S.corsi[+arg].nome)} · ${NOME}` : nome === 'dopo' && S.corsi[+arg] ? `Magistrali affini a ${titoloCorso(S.corsi[+arg].nome)} · ${NOME}` : nome === 'magistrale' ? `Quale magistrale fa per te? · ${NOME}` : sezione === 'quiz' ? `Quale laurea fa per te? · ${NOME}` : NOME;
+  document.title = !location.hash && (STATICA || window.BIVIO_CORSO != null) ? TITOLO_PAGINA : nome === 'corso' && S.corsi[+arg] ? `${nomeIntero(S.corsi[+arg])} · ${NOME}` : nome === 'dopo' && S.corsi[+arg] ? `Magistrali affini a ${titoloCorso(S.corsi[+arg].nome)} · ${NOME}` : nome === 'magistrale' ? `Quale magistrale fa per te? · ${NOME}` : sezione === 'quiz' ? `Quale laurea fa per te? · ${NOME}` : NOME;
   // il quiz ha i suoi dati: si caricano la prima volta che serve, poi si ridisegna
   if (nome !== 'magistrale' && sezione === 'quiz' && !S.orientamento) caricaOrientamento().then(() => disegna(false)).catch(e => { if (['quiz', 'profilo'].includes(rotta().nome)) mostraErrore(e); });
   if (nome === 'casa') requestAnimationFrame(() => disegnaMappa($('#mappa-casa'), S.corsi.filter(c => !c.fuori), { grande: true }));

@@ -221,6 +221,8 @@ select { appearance: none; -webkit-appearance: none; height: 40px; border: 1px s
 .altri { display: flex; justify-content: center; padding: 24px 0; }
 .vuoto { padding: 48px 0; text-align: center; color: var(--tenue); display: grid; gap: 10px; justify-items: center; }
 .vuoto b { color: var(--inchiostro); font-family: var(--f-titoli); font-size: 1.15rem; }
+.variante { color: var(--tenue); font-weight: 400; }
+.variante-titolo { display: block; font-size: .55em; font-weight: 500; color: var(--tenue); margin-top: 6px; letter-spacing: 0; }
 .azioni-errore { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
 .mappa-esplora { position: relative; border: 1px solid var(--linea); border-radius: var(--r); background: var(--foglio); margin-bottom: 18px; overflow: hidden; }
 .mappa-esplora canvas { display: block; width: 100%; height: 380px; cursor: crosshair; }

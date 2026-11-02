@@ -252,7 +252,7 @@ function risultatiTriennali(q) {
   if (!norma(q)) return '';
   if (!r.length) return '<p class="tenue">Nessuna triennale con queste parole. Prova con il nome del corso e la città, per esempio «economia torino».</p>';
   return `<div class="elenco scelta-triennale">${r.map(c => `<button type="button" class="riga" data-m="triennale" data-i="${c.i}">
-    <div style="min-width:0"><div class="titolo-riga">${esc(titoloCorso(c.nome))}</div><div class="sotto-riga">${esc(c.ateneoNome)}${cittaDi(c) ? ` · ${esc(cittaDi(c))}` : ''}</div></div>
+    <div style="min-width:0"><div class="titolo-riga">${esc(titoloCorso(c.nome))}${htmlVariante(c)}</div><div class="sotto-riga">${esc(c.ateneoNome)}${cittaDi(c) ? ` · ${esc(cittaDi(c))}` : ''}</div></div>
     <div class="lato-riga">${c.piano ? '' : '<span class="senza-piano">Piano non disponibile</span>'}</div></button>`).join('')}</div>`;
 }
 // un corso senza piano: si sceglie uno della stessa classe che il piano ce l'ha (con i settori degli esami obbligatori,
@@ -273,11 +273,11 @@ function schermataTriennale() {
   const t = QM.i != null ? S.corsi[QM.i] : null;
   let corpo = '', pronto = false;
   const altri = (testo, sim) => `<p class="nota avviso">${testo} ${sim.length ? 'Scegli il corso della stessa classe che gli somiglia di più: gli esami saranno simili, anche se non uguali.' : 'E non c’è un altro corso della stessa classe con il piano: cerca un corso simile.'}</p>
-      ${sim.length ? `<div class="elenco scelta-triennale">${sim.map(c => `<button type="button" class="riga" data-m="triennale" data-i="${c.i}"><div style="min-width:0"><div class="titolo-riga">${esc(titoloCorso(c.nome))}</div><div class="sotto-riga">${esc(c.ateneoNome)}${cittaDi(c) ? ` · ${esc(cittaDi(c))}` : ''}</div></div></button>`).join('')}</div>` : ''}`;
+      ${sim.length ? `<div class="elenco scelta-triennale">${sim.map(c => `<button type="button" class="riga" data-m="triennale" data-i="${c.i}"><div style="min-width:0"><div class="titolo-riga">${esc(titoloCorso(c.nome))}${htmlVariante(c)}</div><div class="sotto-riga">${esc(c.ateneoNome)}${cittaDi(c) ? ` · ${esc(cittaDi(c))}` : ''}</div></div></button>`).join('')}</div>` : ''}`;
   if (t && !triennaleValida(QM.i)) corpo = altri(`Di ${esc(titoloCorso(t.nome))} (${esc(t.ateneoNome)}) non abbiamo il piano degli esami.`, simili(t));
   else if (t) {
     const p = S.piani[t.ateneo].corsi[t.piano].p, buoni = p.map((_, k) => segnabili(t, k) >= MIN_SEGNATI);
-    const testa = `<div class="triennale-scelta"><div><div class="titolo-riga">${esc(titoloCorso(t.nome))}</div><div class="sotto-riga">${esc(t.ateneoNome)}${cittaDi(t) ? ` · ${esc(cittaDi(t))}` : ''}</div></div>
+    const testa = `<div class="triennale-scelta"><div><div class="titolo-riga">${esc(titoloCorso(t.nome))}${htmlVariante(t)}</div><div class="sotto-riga">${esc(t.ateneoNome)}${cittaDi(t) ? ` · ${esc(cittaDi(t))}` : ''}</div></div>
       <button type="button" class="btn" data-m="cambia-triennale">Cambia</button></div>`;
     // il piano c'è ma non dice di quali settori sono gli esami (succede con alcune fonti): il quiz non saprebbe confrontarlo
     if (!buoni.some(Boolean)) corpo = testa + altri(`Il piano di questo corso non indica il settore scientifico degli esami, e senza il quiz non sa di cosa sono fatti.`, simili(t));
