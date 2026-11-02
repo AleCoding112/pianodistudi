@@ -47,7 +47,7 @@ function caricaMagistrali() {
     Object.values(m.settori).forEach(([g, amb]) => { if (g < 0) return; ga[g] = ga[g] || {}; amb.forEach(([a, q]) => { ga[g][a] = (ga[g][a] || 0) + q; }); });
     m.gruppoAmbiti = Object.fromEntries(Object.entries(ga).map(([g, x]) => [g, quoteDi(x)]));
     S.mag = m;
-  });
+  }).catch(e => { caricamentoMag = null; throw e; });  // fallita, si potrà riprovare
   return caricamentoMag;
 }
 const assaggiCaricati = {};
@@ -193,7 +193,7 @@ function prontoMag() {
 function preparaMag(nuovaSchermata = false) {
   const attese = [caricaMagistrali()];
   if (QM && QM.i != null && triennaleValida(QM.i)) attese.push(pianiDi(S.corsi[QM.i].ateneo));
-  return Promise.all(attese).then(() => mostraMag(nuovaSchermata));
+  return Promise.all(attese).then(() => mostraMag(nuovaSchermata)).catch(e => { if (rotta().nome === 'magistrale') mostraErrore(e); });
 }
 
 /* ---------- schermate ---------- */
@@ -255,31 +255,45 @@ function risultatiTriennali(q) {
     <div style="min-width:0"><div class="titolo-riga">${esc(titoloCorso(c.nome))}</div><div class="sotto-riga">${esc(c.ateneoNome)}${cittaDi(c) ? ` · ${esc(cittaDi(c))}` : ''}</div></div>
     <div class="lato-riga">${c.piano ? '' : '<span class="senza-piano">Piano non disponibile</span>'}</div></button>`).join('')}</div>`;
 }
-// un corso senza piano: si sceglie uno della stessa classe che il piano ce l'ha, il più vicino a quello vero
+// un corso senza piano: si sceglie uno della stessa classe che il piano ce l'ha (con i settori degli esami obbligatori,
+// che danno la composizione del corso: senza, il quiz non saprebbe di cosa è fatto). Prima quelli con più parole del nome
+// in comune («Ingegneria biomedica» → le altre biomediche), poi il più vicino
 function simili(c) {
-  return S.corsi.filter(x => x.classe === c.classe && x.tipo === 'triennale' && x.piano && !x.fuori && x.i !== c.i)
-    .sort((a, b) => (km(c.comune, a.comune) ?? 1e9) - (km(c.comune, b.comune) ?? 1e9)).slice(0, 8);
+  const parole = n => new Set(norma(n).split(' ').filter(w => w.length >= 5)), mie = parole(c.nome);
+  const comuni = x => [...parole(x.nome)].filter(w => mie.has(w)).length;
+  return S.corsi.filter(x => x.classe === c.classe && x.tipo === 'triennale' && x.piano && x.comp && !x.fuori && x.i !== c.i)
+    .sort((a, b) => (comuni(b) - comuni(a)) || ((km(c.comune, a.comune) ?? 1e9) - (km(c.comune, b.comune) ?? 1e9))).slice(0, 8);
+}
+// quanti esami di un curriculum si possono segnare: solo quelli con il settore scientifico, che dice di cosa sono fatti
+function segnabili(t, k) {
+  const d = S.piani[t.ateneo], p = d.corsi[t.piano].p[k];
+  return p ? esamiDaSegnare(p[1], d.esami).reduce((n, a) => n + a.blocchi.reduce((m, x) => m + x.esami.length, 0), 0) : 0;
 }
 function schermataTriennale() {
   const t = QM.i != null ? S.corsi[QM.i] : null;
-  let corpo = '';
-  if (t && !triennaleValida(QM.i)) {
-    const sim = simili(t);
-    corpo = `<p class="nota avviso">Di ${esc(titoloCorso(t.nome))} (${esc(t.ateneoNome)}) non abbiamo il piano degli esami. ${sim.length ? 'Scegli il corso della stessa classe che gli somiglia di più: gli esami saranno simili, anche se non uguali.' : 'E non c’è un altro corso della stessa classe con il piano: cerca un corso simile.'}</p>
+  let corpo = '', pronto = false;
+  const altri = (testo, sim) => `<p class="nota avviso">${testo} ${sim.length ? 'Scegli il corso della stessa classe che gli somiglia di più: gli esami saranno simili, anche se non uguali.' : 'E non c’è un altro corso della stessa classe con il piano: cerca un corso simile.'}</p>
       ${sim.length ? `<div class="elenco scelta-triennale">${sim.map(c => `<button type="button" class="riga" data-m="triennale" data-i="${c.i}"><div style="min-width:0"><div class="titolo-riga">${esc(titoloCorso(c.nome))}</div><div class="sotto-riga">${esc(c.ateneoNome)}${cittaDi(c) ? ` · ${esc(cittaDi(c))}` : ''}</div></div></button>`).join('')}</div>` : ''}`;
-  } else if (t) {
-    const p = S.piani[t.ateneo].corsi[t.piano].p;
-    corpo = `<div class="triennale-scelta"><div><div class="titolo-riga">${esc(titoloCorso(t.nome))}</div><div class="sotto-riga">${esc(t.ateneoNome)}${cittaDi(t) ? ` · ${esc(cittaDi(t))}` : ''}</div></div>
-      <button type="button" class="btn" data-m="cambia-triennale">Cambia</button></div>
-      ${p.length > 1 ? `<fieldset class="cond" style="margin-top:22px"><legend>Quale curriculum hai fatto?</legend><div class="scelte">${p.map(([nome], k) =>
-        `<button type="button" class="scelta-btn" data-m="curr" data-i="${k}" aria-pressed="${QM.curr === k}">${esc(titoloCorso(nome))}</button>`).join('')}</div></fieldset>` : ''}`;
+  if (t && !triennaleValida(QM.i)) corpo = altri(`Di ${esc(titoloCorso(t.nome))} (${esc(t.ateneoNome)}) non abbiamo il piano degli esami.`, simili(t));
+  else if (t) {
+    const p = S.piani[t.ateneo].corsi[t.piano].p, buoni = p.map((_, k) => segnabili(t, k) >= MIN_SEGNATI);
+    const testa = `<div class="triennale-scelta"><div><div class="titolo-riga">${esc(titoloCorso(t.nome))}</div><div class="sotto-riga">${esc(t.ateneoNome)}${cittaDi(t) ? ` · ${esc(cittaDi(t))}` : ''}</div></div>
+      <button type="button" class="btn" data-m="cambia-triennale">Cambia</button></div>`;
+    // il piano c'è ma non dice di quali settori sono gli esami (succede con alcune fonti): il quiz non saprebbe confrontarlo
+    if (!buoni.some(Boolean)) corpo = testa + altri(`Il piano di questo corso non indica il settore scientifico degli esami, e senza il quiz non sa di cosa sono fatti.`, simili(t));
+    else {
+      pronto = buoni[QM.curr];
+      corpo = testa + (p.length > 1 ? `<fieldset class="cond" style="margin-top:22px"><legend>Quale curriculum hai fatto?</legend><div class="scelte">${p.map(([nome], k) =>
+        `<button type="button" class="scelta-btn" data-m="curr" data-i="${k}" aria-pressed="${QM.curr === k}">${esc(titoloCorso(nome))}</button>`).join('')}</div></fieldset>` : '')
+        + (pronto ? '' : '<p class="nota avviso">Il piano di questo curriculum non indica il settore scientifico degli esami, e senza il quiz non sa di cosa sono fatti: scegline un altro.</p>');
+    }
   }
   return `<div class="colonna quiz">${barraMag(0)}
     <h1 class="quiz-domanda" tabindex="-1">Qual è la tua triennale?</h1>
     <p class="quiz-istruzione">Prendiamo il piano degli esami del corso per l’anno ${ANNO_ACCADEMICO}. Se nel frattempo è cambiato un po’, nella prossima schermata segnerai solo gli esami che ricordi.</p>
     ${t && triennaleValida(QM.i) ? corpo : `<form class="cerca-triennale" role="search" onsubmit="return false"><label class="campo">${ICONA_CERCA}<input id="mag-cerca" type="search" placeholder="Nome del corso, ateneo o città" autocomplete="off" aria-label="Cerca la tua triennale"></label></form>
       <div id="mag-risultati" aria-live="polite"></div>${corpo}`}
-    ${navMag(t && triennaleValida(QM.i))}
+    ${navMag(pronto)}
   </div>`;
 }
 // sul telefono i pulsanti mostrano solo la freccia: il nome per chi usa un lettore di schermo sta in aria-label
@@ -294,6 +308,7 @@ function schermataEsami() {
   const segnati = Object.values(QM.voti).filter(v => v !== 0).length;
   return `<div class="colonna quiz">${barraMag(1)}
     <h1 class="quiz-domanda" tabindex="-1">Quali esami ti sono piaciuti?</h1>
+    ${segnabili(t, QM.curr) < MIN_SEGNATI ? '<p class="nota avviso">Il piano di questo curriculum non indica il settore scientifico degli esami, e senza il quiz non sa di cosa sono fatti: torna indietro e scegli un altro corso o curriculum.</p>' : ''}
     <p class="quiz-istruzione">Segna quelli che ti sono piaciuti e quelli che non ti sono piaciuti; gli altri lasciali così. Conta la materia, non il voto né il professore. Fra gli esami a scelta, segna quelli che hai fatto.</p>
     ${anni.map(a => `<section class="anno-voti"><h2>${a.anno ? `${a.anno}° anno` : 'In qualsiasi anno'}</h2>${a.blocchi.map(({ b, esami }) => `
       ${b.s ? `<p class="gruppo-voti">A scelta · ${esc(regolaGruppo(b))}${b.e ? ` · ${esc(b.e)}` : ''}</p>` : ''}
@@ -354,7 +369,7 @@ function schermataAssaggioMag(g) {
 
 /* ---------- risultato ---------- */
 // perché una magistrale è in classifica: le materie che ti sono piaciute (con i nomi dei tuoi esami), quelle no, le nuove
-function perche(x, R) {
+function percheMag(x, R) {
   const M = S.mag, T = R.T, quota = .04;
   const gruppi = Object.entries(x.m.qf).filter(([, q]) => q >= quota).sort((a, b) => b[1] - a[1]).map(([g]) => g);
   const nomi = segno => [...new Set(gruppi.filter(g => (T.gf[g] || 0) * segno > 0).flatMap(g => (T.perGruppo[g] || []).filter(([, v]) => v === segno).map(([n]) => titoloCorso(n))))];
@@ -387,7 +402,7 @@ function risultatoMag() {
       ${senzaCasa ? '<p class="nota avviso">Non hai detto da dove parti: le magistrali sono di tutta Italia. Puoi sceglierlo tornando alle condizioni.</p>' : ''}
       <p class="tenue piccolo">Mostriamo solo magistrali ${esc(elenco(cond))}. In cima ci sono quelle che uniscono meglio quello che hai studiato e quello che ti è piaciuto${QM.dir === 2 ? ': hai scelto di cambiare strada, quindi conta soprattutto cosa ti attira' : QM.dir === 0 ? ': hai scelto di approfondire, quindi conta soprattutto quanto somigliano alla tua triennale' : ''}. Non dicono se puoi iscriverti: i requisiti d’accesso li decide ogni ateneo, e li trovi nella pagina della magistrale.</p>
     </div>
-    ${lista.length ? `<div class="elenco">${lista.slice(0, QM.mostrati).map(x => rigaCorso(x.c, perche(x, R))).join('')}</div>
+    ${lista.length ? `<div class="elenco">${lista.slice(0, QM.mostrati).map(x => rigaCorso(x.c, percheMag(x, R))).join('')}</div>
       ${lista.length > QM.mostrati ? `<div class="altri"><button type="button" class="btn" data-m="altre">Mostra altre ${Math.min(10, lista.length - QM.mostrati)}</button></div>` : ''}`
       : '<div class="vuoto"><b>Nessuna magistrale con queste condizioni.</b><span>Prova ad allargare la zona o ad accettare le magistrali a numero programmato o in inglese.</span><button type="button" class="btn" data-m="vai" data-i="3">Cambia le condizioni</button></div>'}
     <div class="quiz-azioni" style="margin-top:28px">
@@ -402,11 +417,14 @@ function risultatoMag() {
 /* ---------- eventi ---------- */
 function mostraMag(nuovaSchermata = true, fuoco = null) {
   if (rotta().nome !== 'magistrale') return;
-  $('#app').innerHTML = vistaMagistrale();
+  try { $('#app').innerHTML = vistaMagistrale(); } catch (e) { return mostraErrore(e); }
   if (nuovaSchermata) { window.scrollTo(0, 0); const h = $('#app h1'); if (h) h.focus({ preventScroll: true }); }
   else if (fuoco) { const el = $(fuoco); if (el) el.focus({ preventScroll: true }); }
 }
 async function passaMag(n) {
+  try { await passaMagA(n); } catch (e) { mostraErrore(e); }
+}
+async function passaMagA(n) {
   if (n === 4 && !QM.cand) {
     QM.passo = 4; mostraMag();
     QM.cand = await scegliCandidati(QM);
@@ -425,7 +443,9 @@ document.addEventListener('input', ev => {
   clearTimeout(attesaMag);
   attesaMag = setTimeout(() => { const box = $('#mag-risultati'); if (box) box.innerHTML = risultatiTriennali(ev.target.value); }, 200);
 });
-document.addEventListener('click', ev => {
+// un errore in un clic del quiz si mostra, invece di lasciare la schermata ferma
+document.addEventListener('click', ev => { try { clicMag(ev); } catch (e) { mostraErrore(e); } });
+function clicMag(ev) {
   const b = ev.target.closest('[data-m]'); if (!b) return;
   const a = b.dataset.m, i = +b.dataset.i;
   if (!QM) nuovoQuizMag();
@@ -438,7 +458,7 @@ document.addEventListener('click', ev => {
   }
   else if (a === 'avanti') passaMag(QM.passo + 1);
   else if (a === 'vai') { QM.fatto = false; QM.passo = i; salva('quizMag', QM); mostraMag(); }
-  else if (a === 'triennale') { QM.i = i; QM.curr = 0; QM.voti = {}; rifaiAssaggi(); salva('quizMag', QM); triennaleValida(i) ? pianiDi(S.corsi[i].ateneo).then(() => mostraMag(false)) : mostraMag(false); }
+  else if (a === 'triennale') { QM.i = i; QM.curr = 0; QM.voti = {}; rifaiAssaggi(); salva('quizMag', QM); triennaleValida(i) ? pianiDi(S.corsi[i].ateneo).then(() => mostraMag(false)).catch(mostraErrore) : mostraMag(false); }
   else if (a === 'cambia-triennale') { QM.i = null; QM.voti = {}; rifaiAssaggi(); salva('quizMag', QM); mostraMag(false); const c = $('#mag-cerca'); if (c) c.focus(); }
   else if (a === 'curr') { if (QM.curr !== i) { QM.curr = i; QM.voti = {}; rifaiAssaggi(); } salva('quizMag', QM); mostraMag(false, `[data-m="curr"][data-i="${i}"]`); }
   else if (a === 'voto') {
@@ -461,4 +481,4 @@ document.addEventListener('click', ev => {
   else if (a === 'assaggio') { QM.assaggi[QM.passo - 4] = i === 9 ? null : i; passaMag(QM.passo + 1); }
   else if (a === 'altre') { QM.mostrati += 10; salva('quizMag', QM); mostraMag(false); }
   else if (a === 'confronta') { S.confronto = calcolaMag(QM).lista.slice(0, 3).map(x => x.c.i); salva('confronto', S.confronto); vai('#confronta'); }
-});
+}

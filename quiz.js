@@ -177,7 +177,7 @@ function caricaOrientamento() {
     o.percorsoDi = {};
     o.percorsi.forEach((cl, k) => { cl.k = k; cl.quote = Object.fromEntries(o.ambiti.map((a, j) => [a, cl.profilo[j]])); cl.corsi.forEach(i => { o.percorsoDi[i] = k; }); });
     S.orientamento = o;
-  });
+  }).catch(e => { caricamentoOrientamento = null; throw e; });  // fallita, si potrà riprovare
   return caricamentoOrientamento;
 }
 const corsiDelPercorso = cl => cl.corsi.map(i => S.corsi[i]).filter(c => c && !c.fuori);
@@ -780,14 +780,17 @@ function schedaLaurea(v, posizione, R, r) {
 /* ---------- eventi ---------- */
 function mostraQuiz(nuovaSchermata = true, fuoco = null) {
   if (rotta().nome !== 'quiz') return;
-  $('#app').innerHTML = vistaQuiz();
+  try { $('#app').innerHTML = vistaQuiz(); } catch (e) { return mostraErrore(e); }
   if (nuovaSchermata) { window.scrollTo(0, 0); const h = $('#app h1'); if (h) h.focus({ preventScroll: true }); }
   else if (fuoco) { const el = $(fuoco); if (el) el.focus({ preventScroll: true }); }
 }
 function passa(n) {
+  try { passaA(n); } catch (e) { mostraErrore(e); }
+}
+function passaA(n) {
   Q.passo = n;
   // gli assaggi: se un giro ha meno di due lauree da mostrare, si salta
-  if (n >= 15 && n < PASSI && calcola(Q).giri[n - 15].length < 2) { Q.assaggi[n - 15] = null; return passa(n + 1); }
+  if (n >= 15 && n < PASSI && calcola(Q).giri[n - 15].length < 2) { Q.assaggi[n - 15] = null; return passaA(n + 1); }
   if (n >= PASSI) return finisci();
   salva('quiz', Q); mostraQuiz();
 }
@@ -805,7 +808,9 @@ document.addEventListener('input', ev => {
   clearTimeout(attesaIdea);
   attesaIdea = setTimeout(() => { const box = $('#idea-risultati'); if (box) box.innerHTML = risultatiIdea(ev.target.value); }, 250);
 });
-document.addEventListener('click', ev => {
+// un errore in un clic del quiz si mostra, invece di lasciare la schermata ferma
+document.addEventListener('click', ev => { try { clicQuiz(ev); } catch (e) { mostraErrore(e); } });
+function clicQuiz(ev) {
   const b = ev.target.closest('[data-q]'); if (!b) return;
   const a = b.dataset.q, i = +b.dataset.i;
   if (a === 'inizia') { nuovoQuiz(); mostraQuiz(); }
@@ -848,4 +853,4 @@ document.addEventListener('click', ev => {
     try { navigator.clipboard.writeText(location.href).then(() => fatto('Link copiato: puoi mandarlo a chi vuoi.'), () => fatto(`Copia questo link: ${location.href}`)); }
     catch { fatto(`Copia questo link: ${location.href}`); }
   }
-});
+}

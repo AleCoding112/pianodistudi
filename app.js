@@ -73,7 +73,15 @@ function areaPrincipale(comp) {
 }
 
 /* ---------------- dati ---------------- */
-async function json(url) { const r = await fetch(url); if (!r.ok) throw new Error(r.status + ' ' + url); return r.json(); }
+// un file che non arriva (rete interrotta, risposta del server sbagliata o tagliata) è un errore «dei dati»: la pagina
+// propone di riprovare, e chi ha tenuto in memoria la richiesta fallita la dimentica (vedi conDati)
+async function json(url) {
+  const errore = m => Object.assign(new Error(`${url}: ${m}`), { dati: true });
+  let r;
+  try { r = await fetch(url); } catch (e) { throw errore(e.message); }
+  if (!r.ok) throw errore(`risposta ${r.status}`);
+  try { return await r.json(); } catch (e) { throw errore(e.message); }
+}
 async function carica() {
   const [ind, com] = await Promise.all([json('dati/indice.json'), json('dati/comuni.json')]);
   S.diz = ind.diz; S.atenei = ind.atenei; S.macro = ind.macro; S.motivi = ind.motivi; S.comuni = com.comuni; S.regioni = com.regioni; S.aggiornato = ind.aggiornato;
@@ -879,7 +887,11 @@ function rotta() {
   if (!location.hash && STATICA) return { nome: 'statica' };
   const h = (location.hash || '#casa').slice(1); const [nome, arg] = h.split('.'); return { nome: nome || 'casa', arg };
 }
+// un errore mentre si disegna una pagina non deve lasciarla ferma su «Carico…»: si mostra con «Riprova»
 function disegna(inCima = true) {
+  try { disegnaRotta(inCima); } catch (e) { mostraErrore(e); }
+}
+function disegnaRotta(inCima) {
   const { nome, arg } = rotta(), app = $('#app');
   const viste = { casa: vistaCasa, esplora: vistaEsplora, corso: () => vistaCorso(+arg), materie: vistaMaterie, confronta: vistaConfronta, fonti: vistaFonti,
     quiz: vistaQuiz, profilo: () => vistaProfilo(arg), dopo: () => vistaDopo(+arg), magistrale: () => vistaMagistrale(arg), statica: () => STATICA };
@@ -900,7 +912,7 @@ function disegna(inCima = true) {
   const n = $('#n-confronto'); n.hidden = !S.confronto.length; n.textContent = S.confronto.length;
   document.title = !location.hash && (STATICA || window.BIVIO_CORSO != null) ? TITOLO_PAGINA : nome === 'corso' && S.corsi[+arg] ? `${titoloCorso(S.corsi[+arg].nome)} · ${NOME}` : nome === 'dopo' && S.corsi[+arg] ? `Magistrali affini a ${titoloCorso(S.corsi[+arg].nome)} · ${NOME}` : nome === 'magistrale' ? `Quale magistrale fa per te? · ${NOME}` : sezione === 'quiz' ? `Quale laurea fa per te? · ${NOME}` : NOME;
   // il quiz ha i suoi dati: si caricano la prima volta che serve, poi si ridisegna
-  if (nome !== 'magistrale' && sezione === 'quiz' && !S.orientamento) caricaOrientamento().then(() => disegna(false));
+  if (nome !== 'magistrale' && sezione === 'quiz' && !S.orientamento) caricaOrientamento().then(() => disegna(false)).catch(e => { if (['quiz', 'profilo'].includes(rotta().nome)) mostraErrore(e); });
   if (nome === 'casa') requestAnimationFrame(() => disegnaMappa($('#mappa-casa'), S.corsi.filter(c => !c.fuori), { grande: true }));
   if (nome === 'esplora' && S.mappa) requestAnimationFrame(() => disegnaMappa($('#mappa-esplora'), trova()));
   if (nome === 'corso') { riempiPiano(S.corsi[+arg]); riempiLaureati(S.corsi[+arg]); riempiDopo(S.corsi[+arg]); }
@@ -961,7 +973,8 @@ document.addEventListener('click', ev => {
   else if (b.dataset.materia) { statoMaterie.scelta = statoMaterie.scelta === +b.dataset.materia ? null : +b.dataset.materia; $('#risultati-materia').innerHTML = risultatiMaterie(); }
   else {
     const a = b.dataset.azione;
-    if (a === 'altri') { S.mostrati += 60; disegna(false); }
+    if (a === 'riprova') conDati().then(() => disegna(false)).catch(mostraErrore);
+    else if (a === 'altri') { S.mostrati += 60; disegna(false); }
     else if (a === 'altri-dopo') { statoDopo.mostrati += 30; disegna(false); }
     else if (a === 'azzera') { S.filtri = filtriVuoti(); S.mostrati = 60; vai('#esplora'); }
     else if (a === 'mostra-filtri') { S.filtriAperti = $('#filtri').classList.toggle('aperti'); b.setAttribute('aria-expanded', S.filtriAperti); } // resta aperto ai ridisegni
@@ -998,7 +1011,7 @@ window.addEventListener('hashchange', () => conDati().then(() => {
     return;
   }
   const t = $('#app h1'); if (t) { t.setAttribute('tabindex', '-1'); t.focus({ preventScroll: true }); }
-}).catch(erroreDati));
+}).catch(mostraErrore));
 let ridimensiona = null;
 window.addEventListener('resize', () => { clearTimeout(ridimensiona); ridimensiona = setTimeout(() => { if (rotta().nome === 'casa') disegnaMappa($('#mappa-casa'), S.corsi.filter(c => !c.fuori), { grande: true }); if ($('#mappa-esplora')) disegnaMappa($('#mappa-esplora'), trova()); }, 150); });
 
@@ -1018,6 +1031,23 @@ matchMedia('(prefers-color-scheme: dark)').addEventListener('change', aggiornaTe
 // i dati (circa 400 KB compressi) servono alla pagina iniziale, ai corsi e all'app; le pagine indice sono già scritte e li
 // scaricano solo quando si cerca o si naviga dentro l'app, così su un telefono si aprono subito
 let datiPronti = null;
-function conDati() { return datiPronti || (datiPronti = carica()); }
-function erroreDati(e) { $('#app').innerHTML = `<div class="colonna vuoto"><b>Non riesco a caricare i dati.</b><span>${esc(e.message)}</span></div>`; }
-if (!STATICA || location.hash) conDati().then(() => disegna(true)).catch(erroreDati);
+// una richiesta fallita non resta in memoria: «Riprova» la rifà
+function conDati() { return datiPronti || (datiPronti = carica().catch(e => { datiPronti = null; throw e; })); }
+// al posto di un'attesa infinita: cosa non va, «Riprova» e, in piccolo, il motivo tecnico (con il punto del codice), che
+// chi lo vede può riferire. Nei quiz anche «Ricomincia», nel caso il problema sia nelle risposte salvate sul dispositivo
+function mostraErrore(e) {
+  console.error(e);
+  const app = $('#app'); if (!app) return;
+  const dati = !!(e && e.dati), { nome } = rotta(), punto = !dati && String((e && e.stack) || '').match(/([\w.-]+\.js):(\d+)/);
+  const motivo = `${(e && e.message) || String(e)}${punto ? ` · ${punto[1]}:${punto[2]}` : ''}`;
+  const ricomincia = dati ? '' : nome === 'quiz' ? '<button type="button" class="btn" data-q="inizia">Ricomincia il quiz</button>'
+    : nome === 'magistrale' ? '<button type="button" class="btn" data-m="inizia">Ricomincia il quiz</button>'
+    : nome === 'profilo' ? '<a class="btn" href="#quiz">Torna al quiz</a>' : '';
+  app.innerHTML = `<div class="colonna vuoto" role="alert">
+    <b>${dati ? 'Non riesco a caricare i dati.' : 'Non riesco a mostrare questa pagina.'}</b>
+    <span>${dati ? 'Forse la connessione si è interrotta: riprova tra un momento.' : `È un errore del sito, non tuo. Riprova; se si ripete, ${PAGINE ? '<a href="privacy.html">scrivici</a>' : 'scrivici'} copiando il motivo qui sotto.`}</span>
+    <span class="azioni-errore"><button type="button" class="btn primario" data-azione="riprova">Riprova</button>${ricomincia}</span>
+    <span class="tenue piccolo">Motivo: ${esc(motivo)}</span>
+  </div>`;
+}
+if (!STATICA || location.hash) conDati().then(() => disegna(true)).catch(mostraErrore);
