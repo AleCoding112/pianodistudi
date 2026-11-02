@@ -60,6 +60,8 @@ function macroDi(settore) {
   for (const [rx, k] of S.settori) if (rx.test(settore || '')) return k;
   return 'alt';
 }
+// il nome di un settore (DM 639/2024) e la sua area; per i codici vecchi solo l'area
+const nomeSettore = k => [S.nomiSettori[k], nomeMacro(macroDi(k))].filter(Boolean).join(' · ');
 const nomeMacro = k => (S.macro.find(m => m[0] === k) || [k, 'Area non indicata dall’ateneo'])[1];
 function barraComposizione(comp, largo) {
   if (!comp) return '';
@@ -85,7 +87,7 @@ async function json(url) {
 }
 async function carica() {
   const [ind, com] = await Promise.all([json('dati/indice.json'), json('dati/comuni.json')]);
-  S.diz = ind.diz; S.atenei = ind.atenei; S.macro = ind.macro; S.settori = (ind.settori || []).map(([r, k]) => [new RegExp(r), k]); S.motivi = ind.motivi; S.comuni = com.comuni; S.regioni = com.regioni; S.aggiornato = ind.aggiornato;
+  S.diz = ind.diz; S.atenei = ind.atenei; S.macro = ind.macro; S.settori = (ind.settori || []).map(([r, k]) => [new RegExp(r), k]); S.nomiSettori = ind.nomiSettori || {}; S.motivi = ind.motivi; S.comuni = com.comuni; S.regioni = com.regioni; S.aggiornato = ind.aggiornato;
   const d = $('#aggiornato'); if (d && S.aggiornato) d.textContent = dataLunga(S.aggiornato);
   const D = ind.diz;
   S.corsi = ind.corsi.map((v, i) => {
@@ -588,7 +590,7 @@ function htmlPiano(c, p, tabella) {
   }
   const conSettore = Object.values(perSettore).reduce((a, b) => a + b, 0);
   const primiSettori = Object.entries(perSettore).sort((a, b) => b[1] - a[1]).filter(([, v]) => v / conSettore >= .05).slice(0, 6);
-  const settoriTop = conSettore >= 30 && primiSettori.length ? `<p class="settori-top"><span class="tenue">I settori con più crediti obbligatori${conSettore < .9 * totObb ? ' (fra gli esami di cui il piano dice il settore)' : ''}:</span> ${primiSettori.map(([k, v]) => `<span class="nowrap"><span class="codice" title="${esc(nomeMacro(macroDi(k)))}">${esc(k)}</span> ${Math.round(100 * v / conSettore)}%</span>`).join(' · ')}</p>` : '';
+  const settoriTop = conSettore >= 30 && primiSettori.length ? `<p class="settori-top"><span class="tenue">I settori con più crediti obbligatori${conSettore < .9 * totObb ? ' (fra gli esami di cui il piano dice il settore)' : ''}:</span> ${primiSettori.map(([k, v]) => `<span class="nowrap"><span class="codice" title="${esc(nomeSettore(k))}">${esc(k)}</span> ${Math.round(100 * v / conSettore)}%</span>`).join(' · ')}</p>` : '';
   const legenda = Object.entries(quote).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<span><i style="--c:${colore(k)}"></i>${esc(nomeMacro(k))} <span class="tenue num">${Math.round(100 * v / totQ)}%</span></span>`).join('') + '<span><i class="scelta"></i>Esami a scelta</span>';
   const legendaIgnoti = '<span><i class="ignota"></i>A scelta, crediti non indicati</span>';
   // la striscia: per ogni anno gli obbligatori e i gruppi a scelta con i crediti indicati; gli esami che si possono fare
@@ -718,7 +720,7 @@ function htmlEsame(e) {
   const info = [periodoBello(e.periodo), lingua === 'Inglese' ? 'in inglese' : lingua].filter(Boolean);
   // il settore scientifico (con i crediti, se l'esame ne ha più d'uno): chi confronta corsi diversi vede le stesse
   // materie anche quando gli esami si chiamano in modo diverso
-  const settori = e.settori.map(s => `<span class="codice" title="${esc(nomeMacro(macroDi(s.k)))}">${esc(s.k)}${e.settori.length > 1 && s.n ? ` ${fmt(s.n)}` : ''}</span>`).join(' + ');
+  const settori = e.settori.map(s => `<span class="codice" title="${esc(nomeSettore(s.k))}">${esc(s.k)}${e.settori.length > 1 && s.n ? ` ${fmt(s.n)}` : ''}</span>`).join(' + ');
   return `<li class="esame"><span class="pallino" style="--c:${colore(e.macro)}" aria-hidden="true"></span><span class="nome">${esc(titoloCorso(e.nome))}</span><span class="cfu">${e.cfu != null ? `${fmt(e.cfu)} CFU` : ''}</span>
     ${info.length || settori ? `<span class="info">${info.map(x => `<span>${esc(x)}</span>`).join('')}${settori ? `<span class="settori-esame">${settori}</span>` : ''}</span>` : ''}
     ${e.moduli ? `<span class="moduli">${e.moduli.map(([n, k]) => `<span>${esc(titoloCorso(n))}${k ? ` · ${fmt(k)} CFU` : ''}</span>`).join('')}</span>` : ''}</li>`;
