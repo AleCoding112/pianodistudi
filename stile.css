@@ -233,6 +233,8 @@ select { appearance: none; -webkit-appearance: none; height: 40px; border: 1px s
 .scelte-trasf label { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px; flex: 1 1 260px; min-width: 0; }
 .scelte-trasf select { width: 100%; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 table.trasf td { vertical-align: top; }
+.aree-nuove .argomenti { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--linea); }
+.aree-nuove .argomenti p { margin: 0 0 8px; }
 .avviso-requisiti { max-width: 70ch; margin: 0 0 16px; }
 .azioni-errore { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
 .mappa-esplora { position: relative; border: 1px solid var(--linea); border-radius: var(--r); background: var(--foglio); margin-bottom: 18px; overflow: hidden; }

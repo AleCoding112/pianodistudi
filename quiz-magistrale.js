@@ -113,13 +113,26 @@ function profiloTriennale(anni, tab, voti) {
   return { cf, cl, uf: unitario(quoteDi(cf)), ul: unitario(quoteDi(cl)), gf, gl, perGruppo };
 }
 // le aree nuove che uno vuole studiare: il loro ambito vale +1, e i gruppi di settori per la loro parte nell'ambito
-function conAree(T, aree) {
+// le aree nuove scelte: tutta l'area, o solo gli argomenti scelti dentro l'area (gruppi di settori, «Microbiologia»
+// dentro «biologia»). Con gli argomenti contano solo quelli, al massimo; il resto dell'area resta com'era
+function conAree(T, aree, argomenti = {}) {
   const M = S.mag, gf = { ...T.gf }, gl = { ...T.gl };
-  aree.map(a => M.ambiti.indexOf(a)).filter(a => a >= 0).forEach(a => {
+  aree.forEach(nome => {
+    const a = M.ambiti.indexOf(nome); if (a < 0) return;
+    const scelti = (argomenti[nome] || []).filter(g => M.gruppoAmbiti[g]);
+    if (scelti.length) { scelti.forEach(g => { gf[g] = 1; }); return; }
     gl[a] = Math.max(gl[a] ?? 0, 1);
     Object.entries(M.gruppoAmbiti).forEach(([g, q]) => { if (q[a]) gf[g] = Math.max(gf[g] ?? 0, q[a]); });
   });
   return { gf, gl };
+}
+// gli argomenti da proporre dentro un'area: i gruppi di settori che stanno per lo più in quell'area, dal più presente
+// nelle magistrali, con il nome del DM 639/2024
+function argomentiDi(nome) {
+  const M = S.mag, a = M.ambiti.indexOf(nome);
+  if (!M.peso) { M.peso = {}; M.curr.forEach(m => { for (const g in m.qf) M.peso[g] = (M.peso[g] || 0) + m.qf[g]; }); }
+  return Object.entries(M.gruppoAmbiti).filter(([g, q]) => (q[a] || 0) >= .5 && M.nomiGruppi?.[g] && (M.peso[g] || 0) >= 3)
+    .sort((x, y) => (M.peso[y[0]] || 0) - (M.peso[x[0]] || 0)).slice(0, 12).map(([g]) => g);
 }
 
 /* ---------- calcolo ---------- */
@@ -141,7 +154,7 @@ function gustoMag(m, G) {
 const soloDa = classe => { const m = /^LM\/SNT(\d)$/.exec(classe || ''); return m ? `L/SNT${m[1]}` : null; };
 function calcolaMag(q, conAssaggi = true) {
   const M = S.mag, t = S.corsi[q.i], dati = S.piani[t.ateneo], p = dati.corsi[t.piano].p[q.curr];
-  const T = profiloTriennale(p[1], dati.esami, q.voti), G = conAree(T, q.aree), { pesi: [pa, pg], soglia } = DIREZIONI[q.dir ?? 0];
+  const T = profiloTriennale(p[1], dati.esami, q.voti), G = conAree(T, q.aree, q.argomenti), { pesi: [pa, pg], soglia } = DIREZIONI[q.dir ?? 0];
   const scelti = conAssaggi ? (q.assaggi || []).map((x, g) => x != null && q.cand && q.cand[g] ? q.cand[g][x] : null).filter(x => x != null).map(j => M.curr[j]) : [];
   const tutti = [];
   M.curr.forEach(m => {
@@ -180,7 +193,7 @@ async function scegliCandidati(q) {
 let QM = leggi('quizMag', null);
 if (QM && QM.versione !== VERSIONE_MAG) QM = null;
 function nuovoQuizMag(i = null) {
-  QM = { versione: VERSIONE_MAG, passo: 0, i, curr: 0, voti: {}, dir: null, aree: [], cond: { ...COND_MAG }, cand: null, assaggi: [null, null], ordine: [mescola(3), mescola(3)], fatto: false, mostrati: 10 };
+  QM = { versione: VERSIONE_MAG, passo: 0, i, curr: 0, voti: {}, dir: null, aree: [], argomenti: {}, cond: { ...COND_MAG }, cand: null, assaggi: [null, null], ordine: [mescola(3), mescola(3)], fatto: false, mostrati: 10 };
   salva('quizMag', QM);
 }
 const triennaleValida = i => { const c = S.corsi[i]; return c && c.tipo === 'triennale' && c.piano && !c.fuori; };
@@ -325,6 +338,9 @@ function schermataDirezione() {
       <p class="tenue piccolo">Fino a ${MAX_AREE}. Il quiz sa cosa ti è piaciuto fra le materie che hai fatto, non fra quelle che non hai mai provato: questo glielo dici tu.</p>
       ${FAMIGLIE.map(f => `<div class="famiglia-aree"><span class="tenue piccolo">${esc(f.nome)}</span><div class="scelte">${f.ambiti.map(a =>
         `<button type="button" class="scelta-btn" data-m="area" data-a="${a}" aria-pressed="${QM.aree.includes(a)}"${!QM.aree.includes(a) && QM.aree.length >= MAX_AREE ? ' disabled' : ''}>${esc(AMBITI_NOMI[a])}</button>`).join('')}</div></div>`).join('')}
+      ${QM.aree.map(a => { const lista = argomentiDi(a), scelti = (QM.argomenti || {})[a] || []; return lista.length ? `<div class="argomenti">
+        <p class="piccolo"><b>${esc(maiuscola(AMBITI_NOMI[a]))}</b>: qualcosa in particolare? <span class="tenue">Se non scegli niente, conta tutta l’area.</span></p>
+        <div class="scelte">${lista.map(g => `<button type="button" class="scelta-btn" data-m="argomento" data-a="${a}" data-g="${g}" aria-pressed="${scelti.includes(g)}">${esc(S.mag.nomiGruppi[g])}</button>`).join('')}</div></div>` : ''; }).join('')}
     </fieldset>
     ${navMag(QM.dir != null && !serveArea, 'Avanti', serveArea ? 'Per cambiare strada, dicci verso dove: scegli almeno un’area' : '')}
   </div>`;
@@ -394,7 +410,7 @@ function risultatoMag() {
   return `<div class="colonna risultato-mag">
     <p class="eyebrow-profilo">Il tuo risultato</p>
     <h1 tabindex="-1">Le magistrali per te</h1>
-    <p class="sotto-titolo">Partendo da <a href="#corso.${t.i}">${esc(titoloCorso(t.nome))}</a> (${esc(t.ateneoNome)}), con la scelta di <b>${esc(DIREZIONI[QM.dir ?? 0].d.toLowerCase())}</b>${QM.aree.length ? ` verso ${esc(elenco(QM.aree.map(a => AMBITI_BREVI[a])))}` : ''}.</p>
+    <p class="sotto-titolo">Partendo da <a href="#corso.${t.i}">${esc(titoloCorso(t.nome))}</a> (${esc(t.ateneoNome)}), con la scelta di <b>${esc(DIREZIONI[QM.dir ?? 0].d.toLowerCase())}</b>${QM.aree.length ? ` verso ${esc(elenco(QM.aree.map(a => AMBITI_BREVI[a] + ((QM.argomenti || {})[a]?.length ? ` (${QM.argomenti[a].map(g => S.mag.nomiGruppi[g].toLowerCase()).join(', ')})` : ''))))}` : ''}.</p>
     <div class="riassunto-mag">
       ${piaciuti.length ? `<p><span class="segno-piu">${SEGNO_PIU}</span>Ti sono piaciuti: ${esc(elenco(piaciuti.slice(0, 6)))}${piaciuti.length > 6 ? ` e altri ${piaciuti.length - 6}` : ''}.</p>` : ''}
       ${no.length ? `<p><span class="segno-meno">${SEGNO_MENO}</span>Non ti sono piaciuti: ${esc(elenco(no.slice(0, 6)))}${no.length > 6 ? ` e altri ${no.length - 6}` : ''}.</p>` : ''}
@@ -473,8 +489,14 @@ function clicMag(ev) {
     if (nav) nav.outerHTML = navMag(segnati >= MIN_SEGNATI, 'Avanti', segnati >= MIN_SEGNATI ? `${segnati} esami segnati` : `Segna almeno ${MIN_SEGNATI} esami (finora ${segnati})`);
   }
   else if (a === 'dir') { QM.dir = i; rifaiAssaggi(); salva('quizMag', QM); mostraMag(false, `[data-m="dir"][data-i="${i}"]`); }
+  else if (a === 'argomento') {
+    const x = b.dataset.a, g = b.dataset.g, arg = QM.argomenti = QM.argomenti || {}, l = arg[x] || [];
+    arg[x] = l.includes(g) ? l.filter(y => y !== g) : [...l, g];
+    rifaiAssaggi(); salva('quizMag', QM); mostraMag(false, `[data-m="argomento"][data-g="${g}"]`);
+  }
   else if (a === 'area') {
     const x = b.dataset.a;
+    if (QM.aree.includes(x) && QM.argomenti) delete QM.argomenti[x];
     QM.aree = QM.aree.includes(x) ? QM.aree.filter(y => y !== x) : [...QM.aree, x].slice(0, MAX_AREE);
     rifaiAssaggi(); salva('quizMag', QM); mostraMag(false, `[data-m="area"][data-a="${x}"]`);
   }
