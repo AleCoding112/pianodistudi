@@ -590,7 +590,13 @@ function esameDa(v) {
   return { nome, cfu, settori: s, periodo, taf, lingua, moduli, sotto, macro: s.length ? macroDi(s.slice().sort((a, b) => (b.n || 0) - (a.n || 0))[0].k) : 'alt' };
 }
 function regolaGruppo(b) {
-  if (b.x) return 'Facoltativo';
+  // i riquadri a parte: i crediti in sovrannumero sono facoltativi; obblighi formativi aggiuntivi e requisiti per
+  // l'iscrizione non sono facoltativi per chi li deve fare, ma non danno crediti
+  if (b.x) return /obblighi formativi|requisiti per/i.test(b.e || '') ? 'Senza crediti' : 'Facoltativo';
+  // percorsi alternativi (pulisci-catalogo.py): se ne sceglie uno intero, con i crediti di un percorso
+  if (b.p) return `Scegli un percorso${b.c ? ` · ${fmt(b.c)} CFU` : ''}`;
+  // pacchetti di esami da prendere interi (ESSE3, regole contate in blocchi)
+  if (b.q) return `Scegli ${(b.k || 1) === 1 ? 'un gruppo di esami' : `${b.k} gruppi di esami`}${b.c ? ` · ${fmt(b.c)}${b.m ? `–${fmt(b.m)}` : ''} CFU` : ''}`;
   if (b.k) return `Scegli ${b.k === 1 ? 'un esame' : `${b.k} esami`}${b.c ? ` · ${fmt(b.c)}${b.m ? `–${fmt(b.m)}` : ''} CFU` : ''}`;
   if (b.c && b.m) return `Scegli tra ${fmt(b.c)} e ${fmt(b.m)} CFU`;
   if (!b.c && b.m) return `Fino a ${fmt(b.m)} CFU`;
