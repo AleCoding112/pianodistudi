@@ -444,7 +444,7 @@ function htmlDoppio(c) {
   const righe = c.doppio.map(([tipo, chi, soci, url]) => `<b>${esc(TIPI[tipo] || TIPI.X)}</b>${soci && soci.length ? ` con ${esc(soci.join(', '))}` : ''}: `
     + `${chi ? esc(CHI[chi]) : 'la pagina dell’ateneo non dice se vale per tutti gli iscritti o solo per chi viene selezionato'}.`
     + `${url ? ` <a href="${esc(url)}" target="_blank" rel="noopener">Fonte: pagina dell’ateneo</a>.` : ''}`);
-  return `<p class="nota regola-accesso">${righe.join('<br>')} <span class="tenue">Elenco costruito dalle pagine ufficiali di questi atenei: ${esc(controllati)}; per gli altri non è controllato.</span></p>`;
+  return `<p class="nota regola-accesso">${righe.join('<br>')} <span class="tenue">Le condizioni (un curriculum, i posti, quando candidarsi: a volte già durante la triennale) le dice la pagina del programma. Elenco costruito dalle pagine ufficiali di questi atenei: ${esc(controllati)}; per gli altri non è controllato.</span></p>`;
 }
 // sotto i dati del corso, a tutta larghezza: la frase è lunga e nella colonna dell'accesso, sul telefono, non ci sta
 function htmlRegolaAccesso(c) {
