@@ -82,6 +82,14 @@ function esamiDaSegnare(anni, tab) {
     const e = tab[k]; if (!e || !e[2] || visti.has(k)) return false; visti.add(k); return true;
   }) })).filter(x => x.esami.length) })).filter(a => a.blocchi.length);
 }
+// i crediti a scelta libera di cui la fonte non dà l'elenco («A scelta dello studente · 12 CFU»): senza esami, il quiz non
+// sa di cosa sono fatti. Chi se li ricorda li aggiunge cercandoli fra gli esami dell'ateneo (QM.liberi), e contano come gli
+// obbligatori; senza aggiunte il profilo resta quello del solo piano
+function liberiDi(anni) {
+  const b = anni.flatMap(([, blocchi]) => blocchi.filter(x => x.s && !x.x && !(x.i || []).length));
+  return { n: b.length, cfu: b.every(x => x.c) ? b.reduce((t, x) => t + x.c, 0) : null };
+}
+const conLiberi = (anni, liberi) => (liberi || []).length ? [...anni, [null, [{ e: 'Esami a scelta libera aggiunti', i: liberi }]]] : anni;
 // voti: {esame: 1 piaciuto, -1 non piaciuto, 0 fatto senza giudizio}; per gli esami obbligatori l'assenza vale 0
 function profiloTriennale(anni, tab, voti) {
   const M = S.mag, cf = {}, cl = {}, gNum = {}, gDen = {}, lNum = {}, lDen = {}, perGruppo = {};
@@ -154,7 +162,7 @@ function gustoMag(m, G) {
 const soloDa = classe => { const m = /^LM\/SNT(\d)$/.exec(classe || ''); return m ? `L/SNT${m[1]}` : null; };
 function calcolaMag(q, conAssaggi = true) {
   const M = S.mag, t = S.corsi[q.i], dati = S.piani[t.ateneo], p = dati.corsi[t.piano].p[q.curr];
-  const T = profiloTriennale(p[1], dati.esami, q.voti), G = conAree(T, q.aree, q.argomenti), { pesi: [pa, pg], soglia } = DIREZIONI[q.dir ?? 0];
+  const T = profiloTriennale(conLiberi(p[1], q.liberi), dati.esami, q.voti), G = conAree(T, q.aree, q.argomenti), { pesi: [pa, pg], soglia } = DIREZIONI[q.dir ?? 0];
   const scelti = conAssaggi ? (q.assaggi || []).map((x, g) => x != null && q.cand && q.cand[g] ? q.cand[g][x] : null).filter(x => x != null).map(j => M.curr[j]) : [];
   const tutti = [];
   M.curr.forEach(m => {
@@ -193,7 +201,7 @@ async function scegliCandidati(q) {
 let QM = leggi('quizMag', null);
 if (QM && QM.versione !== VERSIONE_MAG) QM = null;
 function nuovoQuizMag(i = null) {
-  QM = { versione: VERSIONE_MAG, passo: 0, i, curr: 0, voti: {}, dir: null, aree: [], argomenti: {}, cond: { ...COND_MAG }, cand: null, assaggi: [null, null], ordine: [mescola(3), mescola(3)], fatto: false, mostrati: 10 };
+  QM = { versione: VERSIONE_MAG, passo: 0, i, curr: 0, voti: {}, liberi: [], dir: null, aree: [], argomenti: {}, cond: { ...COND_MAG }, cand: null, assaggi: [null, null], ordine: [mescola(3), mescola(3)], fatto: false, mostrati: 10 };
   salva('quizMag', QM);
 }
 const triennaleValida = i => { const c = S.corsi[i]; return c && c.tipo === 'triennale' && c.piano && !c.fuori; };
@@ -326,8 +334,38 @@ function schermataEsami() {
     ${anni.map(a => `<section class="anno-voti"><h2>${a.anno ? `${a.anno}° anno` : 'In qualsiasi anno'}</h2>${a.blocchi.map(({ b, esami }) => `
       ${b.s ? `<p class="gruppo-voti">A scelta · ${esc(regolaGruppo(b))}${b.e ? ` · ${esc(b.e)}` : ''}</p>` : ''}
       <ul class="voti${b.s ? ' a-scelta' : ''}">${esami.map(k => { const e = tab[k]; return `<li data-voto="${QM.voti[k] ?? ''}"><span class="nome-voto">${esc(titoloCorso(e[0]))}<span class="cfu num">${e[1] ? `${fmt(e[1])} CFU` : ''}</span></span>${bottoniVoto(k, b.s, titoloCorso(e[0]))}</li>`; }).join('')}</ul>`).join('')}</section>`).join('')}
+    ${sezioneLiberi(p[1], tab)}
     ${navMag(segnati >= MIN_SEGNATI, 'Avanti', segnati >= MIN_SEGNATI ? `${segnati} esami segnati` : `Segna almeno ${MIN_SEGNATI} esami (finora ${segnati})`)}
   </div>`;
+}
+function sezioneLiberi(anni, tab) {
+  const L = liberiDi(anni), liberi = QM.liberi || [];
+  if (!L.n) return '';
+  return `<section class="anno-voti liberi"><h2>Esami a scelta libera</h2>
+    <p class="gruppo-voti">A scelta libera${L.cfu ? ` · ${fmt(L.cfu)} CFU` : ''} · l’ateneo non pubblica l’elenco</p>
+    <p class="nota">Se ricordi quali esami hai scelto, cercali fra quelli dell’ateneo e aggiungili: contano come gli altri. Se non li aggiungi, il quiz non ne tiene conto.</p>
+    ${liberi.length ? `<ul class="voti">${liberi.map(k => { const e = tab[k]; return e ? `<li data-voto="${QM.voti[k] ?? ''}"><span class="nome-voto">${esc(titoloCorso(e[0]))}<span class="cfu num">${e[1] ? `${fmt(e[1])} CFU` : ''}</span></span><span class="voto-libero">${bottoniVoto(k, false, titoloCorso(e[0]))}<button type="button" class="btn togli-libero" data-m="libero-togli" data-k="${k}" aria-label="Togli ${esc(titoloCorso(e[0]))}">Togli</button></span></li>` : ''; }).join('')}</ul>` : ''}
+    <form class="cerca-triennale cerca-libero" role="search" onsubmit="return false"><label class="campo">${ICONA_CERCA}<input id="mag-libero-cerca" type="search" placeholder="Cerca un esame dell’ateneo" autocomplete="off" aria-label="Cerca un esame a scelta che hai fatto"></label></form>
+    <div id="mag-liberi-risultati" aria-live="polite"></div>
+  </section>`;
+}
+// gli esami dell'ateneo con il settore, per nome, esclusi quelli già nel curriculum e quelli già aggiunti
+function risultatiLiberi(q) {
+  const t = S.corsi[QM.i], dati = S.piani[t.ateneo], tab = dati.esami, p = dati.corsi[t.piano].p[QM.curr];
+  const parole = norma(q).split(' ').filter(Boolean);
+  if (!parole.length || norma(q).length < 3) return '';
+  const fuori = new Set([...p[1].flatMap(([, blocchi]) => blocchi.flatMap(b => b.i || [])), ...(QM.liberi || [])]);
+  const visti = new Set(), trovati = [];
+  tab.forEach((e, k) => {
+    if (!e || !e[2] || !e[1] || fuori.has(k)) return;
+    const n = norma(e[0]);
+    if (!parole.every(w => n.includes(w)) || visti.has(n + '|' + e[1])) return;
+    visti.add(n + '|' + e[1]); trovati.push([k, n]);
+  });
+  const testa = parole.join(' ');
+  trovati.sort((a, b) => (b[1].startsWith(testa) - a[1].startsWith(testa)) || a[1].length - b[1].length);
+  if (!trovati.length) return '<p class="nota">Nessun esame con questo nome fra quelli dell’ateneo di cui sappiamo il settore.</p>';
+  return `<div class="elenco scelta-libero">${trovati.slice(0, 8).map(([k]) => `<button type="button" class="riga" data-m="libero-aggiungi" data-k="${k}"><span class="titolo-riga">${esc(titoloCorso(tab[k][0]))}</span><span class="sotto-riga num">${fmt(tab[k][1])} CFU · aggiungi</span></button>`).join('')}</div>`;
 }
 function schermataDirezione() {
   const serveArea = QM.dir === 2 && !QM.aree.length;
@@ -456,6 +494,11 @@ async function passaMagA(n) {
 const rifaiAssaggi = () => { QM.cand = null; QM.assaggi = [null, null]; };
 let attesaMag = null;
 document.addEventListener('input', ev => {
+  if (ev.target.id === 'mag-libero-cerca') {
+    clearTimeout(attesaMag);
+    attesaMag = setTimeout(() => { const box = $('#mag-liberi-risultati'); if (box) box.innerHTML = risultatiLiberi(ev.target.value); }, 200);
+    return;
+  }
   if (ev.target.id !== 'mag-cerca') return;
   clearTimeout(attesaMag);
   attesaMag = setTimeout(() => { const box = $('#mag-risultati'); if (box) box.innerHTML = risultatiTriennali(ev.target.value); }, 200);
@@ -475,9 +518,9 @@ function clicMag(ev) {
   }
   else if (a === 'avanti') passaMag(QM.passo + 1);
   else if (a === 'vai') { QM.fatto = false; QM.passo = i; salva('quizMag', QM); mostraMag(); }
-  else if (a === 'triennale') { QM.i = i; QM.curr = 0; QM.voti = {}; rifaiAssaggi(); salva('quizMag', QM); triennaleValida(i) ? pianiDi(S.corsi[i].ateneo).then(() => mostraMag(false)).catch(mostraErrore) : mostraMag(false); }
-  else if (a === 'cambia-triennale') { QM.i = null; QM.voti = {}; rifaiAssaggi(); salva('quizMag', QM); mostraMag(false); const c = $('#mag-cerca'); if (c) c.focus(); }
-  else if (a === 'curr') { if (QM.curr !== i) { QM.curr = i; QM.voti = {}; rifaiAssaggi(); } salva('quizMag', QM); mostraMag(false, `[data-m="curr"][data-i="${i}"]`); }
+  else if (a === 'triennale') { QM.i = i; QM.curr = 0; QM.voti = {}; QM.liberi = []; rifaiAssaggi(); salva('quizMag', QM); triennaleValida(i) ? pianiDi(S.corsi[i].ateneo).then(() => mostraMag(false)).catch(mostraErrore) : mostraMag(false); }
+  else if (a === 'cambia-triennale') { QM.i = null; QM.voti = {}; QM.liberi = []; rifaiAssaggi(); salva('quizMag', QM); mostraMag(false); const c = $('#mag-cerca'); if (c) c.focus(); }
+  else if (a === 'curr') { if (QM.curr !== i) { QM.curr = i; QM.voti = {}; QM.liberi = []; rifaiAssaggi(); } salva('quizMag', QM); mostraMag(false, `[data-m="curr"][data-i="${i}"]`); }
   else if (a === 'voto') {
     const k = b.dataset.k, v = +b.dataset.v;
     if (QM.voti[k] === v) delete QM.voti[k]; else QM.voti[k] = v;
@@ -487,6 +530,12 @@ function clicMag(ev) {
     li.querySelectorAll('[data-m="voto"]').forEach(x => x.setAttribute('aria-pressed', String(QM.voti[k] === +x.dataset.v)));
     const segnati = Object.values(QM.voti).filter(x => x !== 0).length, nav = $('#app .quiz-nav');
     if (nav) nav.outerHTML = navMag(segnati >= MIN_SEGNATI, 'Avanti', segnati >= MIN_SEGNATI ? `${segnati} esami segnati` : `Segna almeno ${MIN_SEGNATI} esami (finora ${segnati})`);
+  }
+  else if (a === 'libero-aggiungi' || a === 'libero-togli') {
+    const k = +b.dataset.k, l = QM.liberi || [];
+    QM.liberi = a === 'libero-aggiungi' ? [...l.filter(x => x !== k), k] : l.filter(x => x !== k);
+    if (a === 'libero-togli') delete QM.voti[k];
+    rifaiAssaggi(); salva('quizMag', QM); mostraMag(false, '#mag-libero-cerca');
   }
   else if (a === 'dir') { QM.dir = i; rifaiAssaggi(); salva('quizMag', QM); mostraMag(false, `[data-m="dir"][data-i="${i}"]`); }
   else if (a === 'argomento') {

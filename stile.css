@@ -453,10 +453,10 @@ main:focus { outline: none; }
 .solo-telefono { display: none; }
 @media (max-width: 640px) { .solo-telefono { display: block; } }
 .cerca-esplora { margin: 4px 0 14px; }
-.cerca-esplora .campo { display: flex; align-items: center; gap: 8px; border: 1px solid var(--linea); border-radius: 999px; background: var(--foglio); padding: 0 16px; height: 48px; }
-.cerca-esplora .campo svg { width: 18px; height: 18px; color: var(--lampone); flex: none; }
-.cerca-esplora input { border: 0; background: transparent; width: 100%; height: 100%; font: inherit; color: var(--inchiostro); outline: none; }
-.cerca-esplora .campo:focus-within { border-color: var(--lampone); box-shadow: 0 0 0 3px var(--cipria); }
+.cerca-esplora .campo, .cerca-triennale .campo { display: flex; align-items: center; gap: 8px; border: 1px solid var(--linea); border-radius: 999px; background: var(--foglio); padding: 0 16px; height: 48px; }
+.cerca-esplora .campo svg, .cerca-triennale .campo svg { width: 18px; height: 18px; color: var(--lampone); flex: none; }
+.cerca-esplora input, .cerca-triennale input { border: 0; background: transparent; width: 100%; height: 100%; font: inherit; color: var(--inchiostro); outline: none; }
+.cerca-esplora .campo:focus-within, .cerca-triennale .campo:focus-within { border-color: var(--lampone); box-shadow: 0 0 0 3px var(--cipria); }
 /* pagina di testo (fonti e note) */
 .testo-pagina { max-width: 72ch; }
 .testo-pagina h2 { margin: 30px 0 8px; }
@@ -636,6 +636,11 @@ button.riga { width: 100%; background: none; border: 0; border-bottom: 1px solid
 .anno-voti { margin-top: 26px; }
 .anno-voti h2 { font-size: 1.15rem; margin-bottom: 4px; }
 .gruppo-voti { margin: 14px 0 2px; font-size: .86rem; color: var(--tenue); font-weight: 600; }
+.liberi .nota { margin: 4px 0 10px; }
+.voto-libero { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.togli-libero { padding: 6px 12px; font-size: .86rem; }
+.cerca-libero { margin-top: 12px; }
+.scelta-libero .riga { display: flex; justify-content: space-between; gap: 6px 16px; flex-wrap: wrap; text-align: left; }
 .voti { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--linea); }
 .voti li { display: flex; justify-content: space-between; align-items: center; gap: 8px 16px; flex-wrap: wrap; padding: 9px 2px; border-bottom: 1px solid var(--linea); }
 .voti li[data-voto="1"] .nome-voto { color: var(--lampone-testo); font-weight: 600; }
