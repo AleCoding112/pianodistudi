@@ -637,6 +637,7 @@ button.riga { width: 100%; background: none; border: 0; border-bottom: 1px solid
 .anno-voti h2 { font-size: 1.15rem; margin-bottom: 4px; }
 .gruppo-voti { margin: 14px 0 2px; font-size: .86rem; color: var(--tenue); font-weight: 600; }
 .liberi .nota { margin: 4px 0 10px; }
+.regola-accesso { max-width: 70ch; margin: 14px 0 0; }
 .voto-libero { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .togli-libero { padding: 6px 12px; font-size: .86rem; }
 .cerca-libero { margin-top: 12px; }

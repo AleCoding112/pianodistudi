@@ -87,7 +87,7 @@ async function json(url) {
 }
 async function carica() {
   const [ind, com] = await Promise.all([json('dati/indice.json'), json('dati/comuni.json')]);
-  S.diz = ind.diz; S.atenei = ind.atenei; S.macro = ind.macro; S.settori = (ind.settori || []).map(([r, k]) => [new RegExp(r), k]); S.nomiSettori = ind.nomiSettori || {}; S.motivi = ind.motivi; S.comuni = com.comuni; S.regioni = com.regioni; S.aggiornato = ind.aggiornato;
+  S.diz = ind.diz; S.atenei = ind.atenei; S.macro = ind.macro; S.settori = (ind.settori || []).map(([r, k]) => [new RegExp(r), k]); S.nomiSettori = ind.nomiSettori || {}; S.motivi = ind.motivi; S.statali = ind.statali || {}; S.regoleAccesso = ind.regoleAccesso || null; S.comuni = com.comuni; S.regioni = com.regioni; S.aggiornato = ind.aggiornato;
   const d = $('#aggiornato'); if (d && S.aggiornato) d.textContent = dataLunga(S.aggiornato);
   const D = ind.diz;
   S.corsi = ind.corsi.map((v, i) => {
@@ -407,11 +407,22 @@ function aggiornaRisultati() {
 }
 
 // Medicina, Odontoiatria e Veterinaria in italiano: dal 2025/26 l'accesso nazionale passa dal «semestre filtro»
-const semestreFiltro = c => c.accesso === 'programmato nazionale' && /^LM-(41|42|46)\b/.test(c.classe || '') && c.lingua === 'Italiano';
 // accesso in parole: breve per gli elenchi, intero per la pagina del corso
 // cosa vuol dire «libero» (DM 270/2004, art. 6): senza graduatoria, ma per una triennale serve una preparazione iniziale
 // che l'ateneo di solito verifica (se non va, obblighi formativi aggiuntivi nel primo anno), per una magistrale i
 // requisiti decisi dall'ateneo e una verifica della preparazione personale. E il test, se i requisiti dell'ateneo lo nominano
+// come si entra in un corso ad accesso programmato nazionale, secondo i decreti dell'anno (raccolta/accesso.py): la prima
+// regola per la classe, la lingua (solo italiano o solo inglese: i corsi in più lingue non si sa) e il tipo di ateneo
+function regolaAccesso(c) {
+  if (c.accesso !== 'programmato nazionale' || !S.regoleAccesso) return null;
+  const lingua = c.lingua === 'Inglese' ? 'inglese' : c.lingua === 'Italiano' ? 'italiano' : null, statale = S.statali[c.ateneo];
+  return S.regoleAccesso.regole.find(([classi, l, s]) => new RegExp(classi).test(c.classe || '') && (l == null || l === lingua) && (s == null || s === statale)) || null;
+}
+// sotto i dati del corso, a tutta larghezza: la frase è lunga e nella colonna dell'accesso, sul telefono, non ci sta
+function htmlRegolaAccesso(c) {
+  const r = regolaAccesso(c);
+  return r ? `<p class="nota regola-accesso"><b>Come si entra.</b> ${esc(r[3])} Vale per il ${esc(S.regoleAccesso.anno)}: per l’anno dopo controlla il bando quando esce. <a href="${esc(r[5])}" target="_blank" rel="noopener">Fonte: ${esc(r[4])}</a></p>` : '';
+}
 function notaAccesso(c) {
   const p = t => `<div class="tenue piccolo" style="font-weight:400">${t}</div>`;
   const test = c.test ? ` Per questo corso i requisiti dell’ateneo indicano il ${esc(c.test)}${/TOLC|CEnT/.test(c.test) ? ' (CISIA)' : ''}.` : '';
@@ -510,10 +521,11 @@ function vistaCorso(i) {
     <dl class="fatti">
       <div><dt>Tipo</dt><dd>${TIPI_BREVI[c.tipo] || esc(c.tipo || '—')}${durataDi(c) ? `, ${durataDi(c)} anni` : ''}</dd></div>
       <div><dt>Classe</dt><dd><span class="codice">${esc(c.classe || '—')}</span>${c.nomeClasse ? `<div class="tenue piccolo" style="font-weight:400">${esc(c.nomeClasse)}</div>` : ''}</dd></div>
-      <div><dt>Accesso</dt><dd>${esc(accesso)}${notaAccesso(c)}${c.accesso === 'incerto' ? '<div class="tenue piccolo" style="font-weight:400">Ministero e ateneo non dicono la stessa cosa (libero o a numero programmato): vale quanto scritto sul sito del corso.</div>' : ''}${semestreFiltro(c) ? '<div class="tenue piccolo" style="font-weight:400">Con il «semestre filtro»: ci si iscrive liberamente al primo semestre, poi si prosegue in base agli esami e alla graduatoria nazionale.</div>' : ''}</dd></div>
+      <div><dt>Accesso</dt><dd>${esc(accesso)}${notaAccesso(c)}${c.accesso === 'incerto' ? '<div class="tenue piccolo" style="font-weight:400">Ministero e ateneo non dicono la stessa cosa (libero o a numero programmato): vale quanto scritto sul sito del corso.</div>' : ''}</dd></div>
       <div><dt>Lingua</dt><dd>${esc(c.lingua || '—')}</dd></div>
       <div><dt>Didattica</dt><dd>${esc(c.didattica || '—')}</dd></div>
     </dl>
+    ${htmlRegolaAccesso(c)}
     ${gemelli(c)}
     <div id="piano">${c.piano ? '<p class="caricamento">Carico il piano degli esami…</p>' : sezioneSenzaPiano(c)}</div>
     <div id="testi"></div>
