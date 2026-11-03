@@ -806,68 +806,129 @@ function rigaDopo(x, stessoAteneo) {
     + (stessoAteneo ? '<div class="sotto-riga">Nello stesso ateneo</div>' : '');
   return rigaCorso(x.c, extra);
 }
-/* ---------------- com'è andata ai laureati (AlmaLaurea) ---------------- */
-let caricamentoLaureati = null;
-const laureatiDati = () => caricamentoLaureati || (caricamentoLaureati = json('dati/laureati.json').catch(() => ({ corsi: {}, classi: {}, campi: [] })));
-// sotto questa soglia di risposte i numeri ballano troppo: non si mostrano
+/* ---------------- numeri del corso: iscritti (Ministero) e com'è andata ai laureati (AlmaLaurea) ---------------- */
+// un file per ateneo (dati/numeri/<ateneo>.json), caricato la prima volta che serve
+const caricamentoNumeri = {};
+const numeriAteneo = at => caricamentoNumeri[at] || (caricamentoNumeri[at] = json(`dati/numeri/${at}.json`).catch(() => ({ corsi: {}, classi: {}, campi: [], basi: {} })));
+// i numeri di un corso per nome di campo: valori (v), posizione nella classe (p), valori della classe (k)
+function numeriCorso(N, c) {
+  const r = N.corsi?.[c.i] || {};
+  const per = a => a ? Object.fromEntries(N.campi.map((x, j) => [x, a[j]])) : {};
+  return { al: r.al, mur: r.mur, v: per(r.v), p: per(r.p), k: per(N.classi?.[r.k]), anni: N.anni, basi: N.basi || {}, aderisce: N.almalaurea };
+}
+// sotto questa soglia di risposte i numeri ballano troppo: costruisci-sito.py li lascia vuoti
 const MIN_RISPOSTE = 10;
 function schedaAlmaLaurea(pc, ateneo, tipo, config, anni) {
   const p = { anno: 2025, corstipo: tipo, ateneo, facolta: 'tutti', gruppo: 'tutti', livello: tipo === 'L' ? 1 : 2, area4: 'tutti', pa: ateneo, classe: 'tutti', postcorso: pc, isstella: 0,
     ...(config === 'occupazione' ? { annolau: anni, condocc: 'tutti', iscrls: 'tutti' } : {}), disaggregazione: '', LANG: 'it', CONFIG: config };
   return 'https://www2.almalaurea.it/cgi-php/universita/statistiche/visualizza.php?' + new URLSearchParams(p);
 }
-// spenta finché la raccolta AlmaLaurea non è finita e controllata (vedi PUBBLICAZIONE.md)
-const MOSTRA_LAUREATI = false;
-async function riempiLaureati(c) {
-  if (!MOSTRA_LAUREATI) return;
-  const L = await laureatiDati(), box = $('#laureati');
+const percento = x => `${fmt(Math.round(x))}%`, inEuro = x => `${fmt(Math.round(x))} €`, decimale = x => fmt(x);
+// dove sta il corso tra quelli della stessa classe: p è la quota di corsi con un valore più basso (4-6 su 10: nella media)
+function posizioneTesto(p, [su, giu] = ['più alto', 'più basso']) {
+  if (p == null) return '';
+  if (p === 100) return `${su} di tutti gli altri corsi della classe`;
+  if (p === 0) return `${giu} di tutti gli altri corsi della classe`;
+  if (p >= 60) return `${su} di ${Math.floor(p / 10)} corsi su 10`;
+  if (p <= 40) return `${giu} di ${Math.floor((100 - p) / 10)} corsi su 10`;
+  return 'nella media della classe';
+}
+// sotto un numero: il valore di tutta la classe e la posizione del corso
+function confrontoClasse(n, campo, forma, parole) {
+  const classe = n.k[campo] != null ? `Classe: ${forma(n.k[campo])}` : '', pos = posizioneTesto(n.p[campo], parole);
+  if (!classe && !pos) return '';
+  return `<small>${classe}${classe && pos ? ' · ' : ''}${classe ? pos : pos.replace(/^./, m => m.toUpperCase()) + (/classe$/.test(pos) ? '' : ' della classe')}</small>`;
+}
+const cifraCorso = (n, campo, testo, forma, parole, dettaglio = '') => n.v[campo] == null ? '' :
+  `<div><b>${forma(n.v[campo])}</b><span>${testo}</span>${dettaglio ? `<span class="dettaglio">${dettaglio}</span>` : ''}${confrontoClasse(n, campo, forma, parole)}</div>`;
+const bloccoCifre = (titolo, celle) => (celle = celle.filter(Boolean)).length ? `<h3 class="titolo-laureati">${titolo}</h3><div class="cifre-laureati">${celle.join('')}</div>` : '';
+
+async function riempiNumeri(c) {
+  const N = await numeriAteneo(c.ateneo), box = $('#laureati');
   if (!box || rotta().nome !== 'corso' || +rotta().arg !== c.i) return;
-  const r = L.corsi[c.i];
-  if (!r) { box.innerHTML = ''; return; }
-  const [pc, ateneo, tipo, tutteLeSedi, nomeAL, ...v] = r;
-  const d = Object.fromEntries(L.campi.map((k, j) => [k, v[j]]));
-  const vc = L.classi[`${c.tipo}|${c.classe}`], k = vc ? Object.fromEntries(L.campi.map((x, j) => [x, vc[j]])) : {};
-  const [aProfilo, aUno, aCinque] = L.anni;
-  const pct = x => `${fmt(Math.round(x))}%`, euro = x => `${fmt(Math.round(x))} €`;
-  // un numero, cosa vuol dire, e lo stesso numero per tutti i laureati della classe (atenei di AlmaLaurea)
-  const cifra = (campo, testo, forma) => d[campo] == null ? '' : `<div><b>${forma(d[campo])}</b><span>${testo}</span>${k[campo] != null ? `<small>In Italia, stessa classe: ${forma(k[campo])}</small>` : ''}</div>`;
-  const blocco = (titolo, n, righe, nota) => {
-    const celle = righe.filter(Boolean);
-    return n >= MIN_RISPOSTE && celle.length ? `<h3 class="titolo-laureati">${titolo}</h3><div class="cifre-laureati">${celle.join('')}</div>${nota ? `<p class="nota">${nota}</p>` : ''}` : '';
-  };
-  const magistrale = c.tipo !== 'triennale';
-  const parti = [
-    blocco(`Laureati del ${aProfilo}`, d.questionari, [
-      cifra('inCorso', 'si sono laureati in corso', pct),
-      cifra('voto', 'voto medio di laurea, su 110', x => fmt(x)),
-      cifra('durata', `anni in media per laurearsi${c.tipo === 'magistrale' ? ' (la magistrale)' : ''}`, x => fmt(x)),
-      cifra('rifarebbero', 'rifarebbero lo stesso corso nello stesso ateneo', pct),
-      cifra('soddisfatti', 'sono soddisfatti del corso', pct),
-      cifra('carico', 'trovano il carico di studio adeguato alla durata', pct),
-    ]),
-    blocco(`Un anno dopo la laurea <small>laureati del ${aUno}</small>`, d.intervistati1, magistrale ? [
-      cifra('occupati1', 'lavorano', pct),
-      cifra('stipendio1', 'di stipendio netto al mese, in media, per chi lavora', euro),
-      cifra('efficace1', 'di chi lavora trova la laurea efficace nel suo lavoro', pct),
-    ] : [
-      cifra('magistrale1', 'si sono iscritti a una magistrale', pct),
-      cifra('occupati1', 'lavorano (anche mentre studiano)', pct),
-    ], 'Lavora chi ha un’attività retribuita, anche di formazione (tirocinio, dottorato con borsa).'),
-    magistrale ? blocco(`Cinque anni dopo la laurea <small>laureati del ${aCinque}</small>`, d.intervistati5, [
-      cifra('occupati5', 'lavorano', pct),
-      cifra('stipendio5', 'di stipendio netto al mese, in media, per chi lavora', euro),
-      cifra('efficace5', 'di chi lavora trova la laurea efficace nel suo lavoro', pct),
-    ]) : '',
+  // un ateneo senza nessun numero non ha il file: niente sezione
+  const n = numeriCorso(N, c);
+  box.innerHTML = N.anni ? sezioneIscritti(n) + sezioneLaureati(n, c) : '';
+}
+
+function sezioneIscritti(n) {
+  const m = n.mur;
+  if (!m) return '';
+  const circa = x => x ? 'circa ' : '';
+  const variazione = m.prima ? Math.round(100 * (m.iscritti - m.prima) / m.prima) : null;
+  const celle = [
+    `<div><b>${circa(m.circa)}${fmt(m.iscritti)}</b><span>iscritti nel ${n.anni.iscritti}, tutti gli anni di corso</span>${m.posizione != null ? `<small>${posizioneTesto(m.posizione, ['Più grande', 'Più piccolo'])}${/classe$/.test(posizioneTesto(m.posizione)) ? '' : ' della stessa classe'}</small>` : ''}</div>`,
+    variazione != null ? `<div><b>${Math.abs(variazione) < 3 ? 'Stabile' : (variazione > 0 ? '+' : '−') + fmt(Math.abs(variazione)) + '%'}</b><span>iscritti rispetto al ${n.anni.prima} (erano ${fmt(m.prima)})</span></div>` : '',
+    m.donne != null ? `<div><b>${m.donne}%</b><span>degli iscritti sono donne</span></div>` : '',
+    m.laureati != null ? `<div><b>${circa(m.laureatiCirca)}${fmt(m.laureati)}</b><span>si sono laureati nel ${n.anni.laureati}</span></div>` : '',
   ].filter(Boolean);
-  const pochi = !parti.length;
-  const fonti = [`${d.questionari != null ? `${fmt(d.questionari)} questionari su ${fmt(d.laureati)} laureati del ${aProfilo}` : ''}`,
-    d.intervistati1 != null ? `${fmt(d.intervistati1)} intervistati a un anno` : '', magistrale && d.intervistati5 != null ? `${fmt(d.intervistati5)} a cinque anni` : ''].filter(Boolean);
-  box.innerHTML = `<section class="sezione laureati"><h2>Com’è andata a chi si è laureato</h2>
-    ${pochi ? `<p class="nota">AlmaLaurea ha troppe poche risposte su questo corso (meno di ${MIN_RISPOSTE}) per dare numeri affidabili.</p>` : parti.join('')}
-    <p class="nota">Fonte: <a href="${esc(schedaAlmaLaurea(pc, ateneo, tipo, 'profilo'))}" target="_blank" rel="noopener">AlmaLaurea</a>, indagine 2025${fonti.length ? ` (${esc(elencoSemplice(fonti))})` : ''}.
+  return `<section class="sezione laureati"><h2>Iscritti e laureati</h2><div class="cifre-laureati">${celle.join('')}</div>
+    <p class="nota">Fonte: Ministero dell’Università e della Ricerca, <a href="https://dati-ustat.mur.gov.it/" target="_blank" rel="noopener">open data USTAT</a> (iscritti ${n.anni.iscritti}, dati provvisori). Il Ministero non pubblica i gruppi con meno di 6 persone: quando manca quello degli uomini o delle donne il numero è «circa».${m.nome ? ` Nei dati del Ministero il corso si chiama «${esc(m.nome)}».` : ''}</p></section>`;
+}
+
+function sezioneLaureati(n, c) {
+  if (!n.al) return `<section class="sezione laureati"><h2>Com’è andata a chi si è laureato</h2><p class="nota">${n.aderisce
+    ? 'AlmaLaurea non ha numeri per questo corso: può essere un corso nuovo, senza ancora abbastanza laureati, oppure non abbiamo trovato con certezza la sua scheda.'
+    : 'Questo ateneo non aderisce ad AlmaLaurea, che raccoglie i numeri sui laureati: per questo corso non ci sono.'}</p></section>`;
+  const [pc, ateneo, tipo, tutteLeSedi, nomeAL] = n.al, v = n.v, A = n.anni;
+  const magistrale = c.tipo !== 'triennale';
+  const lunga = ['più lunga', 'più breve'], lungo = ['più lungo', 'più breve'];
+  const fuori = v.fuori1 != null && v.fuori2 != null ? `Fuori corso di un anno: ${percento(v.fuori1)}; di due o più: ${percento(v.fuori2)}` : '';
+  const studi = bloccoCifre(`Durante gli studi <small>laureati del ${A.profilo}</small>`, [
+    cifraCorso(n, 'inCorso', 'si sono laureati in corso', percento, undefined, fuori),
+    cifraCorso(n, 'durata', `anni in media per laurearsi${c.tipo === 'magistrale' ? ' (la magistrale)' : ''}`, decimale, lunga),
+    cifraCorso(n, 'esami', 'media dei voti agli esami, su 30', decimale),
+    cifraCorso(n, 'voto', 'voto medio di laurea, su 110 (la lode conta 113)', decimale),
+    cifraCorso(n, 'frequenza', 'hanno seguito più di tre quarti delle lezioni', percento),
+    cifraCorso(n, 'studioEstero', 'hanno studiato all’estero durante il corso (Erasmus o altro)', percento),
+    cifraCorso(n, 'tirocinio', 'hanno fatto un tirocinio o un lavoro riconosciuto dal corso', percento),
+    cifraCorso(n, 'fuoriRegione', 'vengono da un’altra regione o dall’estero', percento),
+  ]);
+  const giudizio = bloccoCifre('Cosa ne pensano', [
+    cifraCorso(n, 'soddisfatti', 'sono soddisfatti del corso', percento),
+    cifraCorso(n, 'rifarebbero', 'rifarebbero lo stesso corso nello stesso ateneo', percento),
+    cifraCorso(n, 'docenti', 'sono soddisfatti dei rapporti con i docenti', percento),
+    cifraCorso(n, 'carico', 'trovano il carico di studio adeguato alla durata', percento),
+  ]);
+  const NOTA_LAVORO = 'Lavora chi ha un’attività retribuita, anche di formazione (tirocinio, dottorato con borsa).';
+  let dopo = '';
+  if (!magistrale) {
+    const b = bloccoCifre(`Un anno dopo la laurea <small>laureati del ${A[1]}</small>`, [
+      cifraCorso(n, 'magistrale1', 'si sono iscritti a una magistrale', percento),
+      cifraCorso(n, 'occupati1', 'lavorano (anche mentre studiano)', percento),
+    ]);
+    dopo = b ? b + `<p class="nota">${NOTA_LAVORO}</p>` : '';
+  } else {
+    // una tabella: le stesse voci a uno, tre e cinque anni dalla laurea
+    const righe = [
+      ['occupati', 'Lavorano', percento],
+      ['stipendio', 'Stipendio netto al mese', inEuro],
+      ['indeterminato', 'Con un contratto a tempo indeterminato', percento],
+      ['efficace', 'Trovano la laurea efficace nel lavoro', percento],
+      ['lavoroEstero', 'Lavorano all’estero', percento],
+      ['mesi', 'Mesi per trovare il primo lavoro', decimale, lungo],
+    ];
+    const anni = [1, 3, 5].filter(a => righe.some(([k]) => v[k + a] != null));
+    const usate = righe.filter(([k]) => anni.some(a => v[k + a] != null));
+    if (anni.length) dopo = `<h3 class="titolo-laureati">Dopo la laurea</h3>
+      <div class="tabella-scorre"><table class="dopo-laurea">
+        <thead><tr><th scope="col"></th>${anni.map(a => `<th scope="col">${a === 1 ? 'Un anno' : a === 3 ? 'Tre anni' : 'Cinque anni'} dopo<small>laureati del ${A[a]}</small></th>`).join('')}</tr></thead>
+        <tbody>${usate.map(([k, nome, forma, parole]) => `<tr><th scope="row">${nome}</th>${anni.map(a => `<td>${v[k + a] == null ? '<span class="tenue">—</span>' : `<b>${forma(v[k + a])}</b>${confrontoClasse(n, k + a, forma, parole)}`}</td>`).join('')}</tr>`).join('')}</tbody>
+      </table></div>
+      <p class="nota">${NOTA_LAVORO} Stipendio, contratto, efficacia ed estero sono di chi lavora; i mesi per il primo lavoro sono di chi non ha continuato un lavoro che aveva già prima della laurea. Un trattino vuol dire troppe poche risposte (meno di ${MIN_RISPOSTE}).</p>`;
+  }
+  const parti = studi + giudizio + dopo;
+  const fonti = [v.questionari != null ? `${fmt(v.questionari)} questionari su ${fmt(v.laureati)} laureati del ${A.profilo}` : '',
+    v.intervistati1 != null ? `${fmt(v.intervistati1)} intervistati a un anno dalla laurea` : '',
+    magistrale && v.intervistati3 != null ? `${fmt(v.intervistati3)} a tre anni` : '', magistrale && v.intervistati5 != null ? `${fmt(v.intervistati5)} a cinque anni` : ''].filter(Boolean);
+  const link = (testo, config, a) => `<a href="${esc(schedaAlmaLaurea(pc, ateneo, tipo, config, a))}" target="_blank" rel="noopener">${testo}</a>`;
+  return `<section class="sezione laureati"><h2>Com’è andata a chi si è laureato</h2>
+    ${parti ? `<p class="nota" style="margin:-6px 0 4px">Sotto ogni numero: lo stesso numero per tutti i laureati della classe ${esc(c.classe || '')} negli atenei di AlmaLaurea, e dove sta questo corso tra quelli della stessa classe.</p>${parti}`
+      : `<p class="nota">AlmaLaurea ha troppe poche risposte su questo corso (meno di ${MIN_RISPOSTE}) per dare numeri affidabili.</p>`}
+    <p class="nota">Fonte: ${link('AlmaLaurea', 'profilo')}, indagine 2025${fonti.length ? ` (${esc(elencoSemplice(fonti))})` : ''}.
       ${nomeAL ? `Nelle schede di AlmaLaurea il corso si chiama «${esc(nomeAL)}». ` : ''}${tutteLeSedi ? 'Sono i numeri di tutte le sedi del corso: AlmaLaurea non le distingue. ' : ''}
-      Dicono com’è andata a chi si è laureato, non a chi ha lasciato, e dipendono anche da chi si iscrive: un corso che seleziona all’ingresso ha più laureati in corso.
-      Schede complete: <a href="${esc(schedaAlmaLaurea(pc, ateneo, tipo, 'profilo'))}" target="_blank" rel="noopener">profilo dei laureati</a> · <a href="${esc(schedaAlmaLaurea(pc, ateneo, tipo, 'occupazione', 1))}" target="_blank" rel="noopener">lavoro a un anno</a>${magistrale ? ` · <a href="${esc(schedaAlmaLaurea(pc, ateneo, tipo, 'occupazione', 5))}" target="_blank" rel="noopener">a cinque anni</a>` : ''}.</p>
+      Dicono com’è andata a chi si è laureato, non a chi ha lasciato, e dipendono anche da chi si iscrive: un corso che seleziona all’ingresso ha più laureati in corso. <a href="#fonti">Come leggerli</a>.
+      Schede complete: ${link('profilo dei laureati', 'profilo')} · ${link('lavoro a un anno', 'occupazione', 1)}${magistrale ? ` · ${link('a tre anni', 'occupazione', 3)} · ${link('a cinque anni', 'occupazione', 5)}` : ''}.</p>
   </section>`;
 }
 const elencoSemplice = l => l.length < 2 ? l.join('') : l.slice(0, -1).join(', ') + ' e ' + l[l.length - 1];
@@ -955,6 +1016,7 @@ function vistaConfronta() {
     ['Tipo', c => `${TIPI_BREVI[c.tipo] || '—'}`],
     ['Accesso', c => esc(c.accesso === 'incerto' ? 'Da controllare sul sito del corso' : testoAccesso(c, true))],
     ['Lingua', c => esc(c.lingua || '—')],
+    ...righeNumeri(corsi),
     ['Di cosa è fatto', c => c.comp ? `<div class="barre-area">${c.comp.split('.').map(p => [p.slice(0, 3), +p.slice(3)]).map(([k, v]) => `<div><span><span class="b" style="--c:${colore(k)};width:${v}%;display:block"></span><span class="tenue">${esc(nomeMacro(k))}</span></span><span class="num">${v}%</span></div>`).join('')}</div>` : '<span class="tenue">Non disponibile</span>'],
   ];
   return `<div class="colonna"><h1 style="margin-bottom:16px">Confronta</h1>
@@ -962,7 +1024,7 @@ function vistaConfronta() {
       <thead><tr><th scope="col"><span class="tenue piccolo">${corsi.length} di 3</span></th>${corsi.map(c => `<th scope="col"><a href="#corso.${c.i}">${esc(nomeIntero(c))}</a><div style="margin-top:8px"><button type="button" class="btn" data-azione="confronto" data-i="${c.i}">Togli</button></div></th>`).join('')}</tr></thead>
       <tbody>${righe.map(([n, f]) => `<tr><th scope="row">${n}</th>${corsi.map(c => `<td>${f(c)}</td>`).join('')}</tr>`).join('')}</tbody>
     </table></div>
-    <p class="tenue piccolo" style="margin-top:12px">«Di cosa è fatto» somma i crediti degli esami obbligatori per area disciplinare, dai settori scientifici indicati nel piano.</p>
+    <p class="tenue piccolo" style="margin-top:12px">Iscritti: Ministero dell’Università, 2025/26. Numeri dei laureati: AlmaLaurea, indagine 2025, con sotto quelli di tutta la classe di laurea; dettagli e fonti nella pagina di ogni corso. «Di cosa è fatto» somma i crediti degli esami obbligatori per area disciplinare, dai settori scientifici indicati nel piano.</p>
     ${corsi.length >= 2 ? sezioneTrasferimento(corsi) : ''}</div>`;
 }
 
@@ -1019,6 +1081,43 @@ function sezioneTrasferimento(corsi) {
     <tbody>${A.esami.map(riga).join('')}</tbody></table></div></section>`;
 }
 
+// le righe con i numeri del Ministero e di AlmaLaurea: i file degli atenei si caricano la prima volta che servono, poi si ridisegna
+function righeNumeri(corsi) {
+  S.numeri = S.numeri || {};
+  const mancano = [...new Set(corsi.map(c => c.ateneo))].filter(at => !S.numeri[at]);
+  if (mancano.length) {
+    Promise.all(mancano.map(at => numeriAteneo(at).then(N => { S.numeri[at] = N; }))).then(() => { if (rotta().nome === 'confronta') disegna(false); });
+    return [['Iscritti e laureati', () => '<span class="tenue">Carico…</span>']];
+  }
+  const di = c => numeriCorso(S.numeri[c.ateneo], c);
+  const vuoto = t => `<span class="tenue">${t}</span>`;
+  // il valore, con sotto quello della classe; se manca, perché
+  const cella = (campo, forma) => c => {
+    const n = di(c);
+    if (!n.al) return vuoto(n.aderisce ? 'Non disponibile' : 'Ateneo non in AlmaLaurea');
+    const x = n.v[campo];
+    if (x == null) {
+      const base = n.basi[campo], b = base ? n.v[base] : null;
+      return vuoto(b != null && b < MIN_RISPOSTE ? 'Pochi dati' : 'Non disponibile');
+    }
+    return `${forma(x)}${n.k[campo] != null ? `<div class="tenue piccolo">classe: ${forma(n.k[campo])}</div>` : ''}`;
+  };
+  const solo = (tipo, f) => c => (tipo === 'triennale') === (c.tipo === 'triennale') ? f(c) : vuoto('—');
+  const righe = [
+    ['Iscritti', c => { const m = di(c).mur; return m ? `${m.circa ? 'circa ' : ''}${fmt(m.iscritti)}` : vuoto('Non disponibile'); }],
+    ['Laureati in corso', cella('inCorso', percento)],
+    ['Media degli esami', cella('esami', decimale)],
+    ['Rifarebbero lo stesso corso', cella('rifarebbero', percento)],
+    ['Lavorano un anno dopo la laurea', cella('occupati1', percento)],
+  ];
+  if (corsi.some(c => c.tipo === 'triennale')) righe.push(['Iscritti a una magistrale un anno dopo', solo('triennale', cella('magistrale1', percento))]);
+  if (corsi.some(c => c.tipo !== 'triennale')) righe.push(
+    ['Stipendio netto un anno dopo', solo('magistrale', cella('stipendio1', x => inEuro(x) + ' al mese'))],
+    ['Lavorano cinque anni dopo', solo('magistrale', cella('occupati5', percento))],
+    ['Stipendio netto cinque anni dopo', solo('magistrale', cella('stipendio5', x => inEuro(x) + ' al mese'))]);
+  return righe.map(([n, f]) => [n, c => `<span class="num">${f(c)}</span>`]);
+}
+
 /* ---------------- fonti e note ---------------- */
 const MESI = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre'];
 function dataLunga(iso) { const [a, m, g] = String(iso).split('-').map(Number); return a ? `${g} ${MESI[m - 1]} ${a}` : ''; }
@@ -1035,6 +1134,8 @@ function vistaFonti() {
       <li><b>Area di studio e sede</b>: open data del Ministero dell’Università (USTAT), elenco dei corsi 2025/26.</li>
       <li><b>Piani degli esami</b> (${fmt(conPiano.length)} corsi): cataloghi dei corsi e siti ufficiali degli atenei. Ogni piano dice da quale fonte viene e di quale anno è, con il collegamento per controllarlo.</li>
       <li><b>Obiettivi, requisiti d’accesso e sbocchi</b>: le schede pubblicate dagli atenei, riportate senza modifiche.</li>
+      <li><b>Iscritti e laureati di ogni corso</b>: open data del Ministero dell’Università (<a href="https://dati-ustat.mur.gov.it/" target="_blank" rel="noopener">USTAT</a>, licenza IODL 2.0): iscritti per corso dal 2016/17 al 2025/26 (l’ultimo anno è provvisorio) e laureati del 2025. Mancano le università telematiche e i gruppi con meno di 6 persone.</li>
+      <li><b>Com’è andata ai laureati</b> (regolarità, voti, soddisfazione, lavoro e stipendio a uno, tre e cinque anni): <a href="https://www.almalaurea.it/" target="_blank" rel="noopener">AlmaLaurea</a>, indagine 2025 sul profilo e sulla condizione occupazionale dei laureati, schede pubbliche dei singoli corsi e delle classi di laurea. Ci sono solo gli atenei che aderiscono ad AlmaLaurea: non, per esempio, Bocconi, Politecnico di Milano, Cattolica, Luiss e quasi tutte le telematiche.</li>
       <li><b>Comuni e distanze</b>: GeoNames (licenza CC BY 4.0). Le distanze sono in linea d’aria.</li>
     </ul>
     <h2>Come leggere un piano</h2>
@@ -1053,6 +1154,16 @@ function vistaFonti() {
       <li>L’affinità non dice se puoi iscriverti. I requisiti d’accesso (crediti in certi settori, voto, colloquio) li decide ogni ateneo e sono nella pagina della magistrale. L’unica regola che applichiamo è di legge: le magistrali delle professioni sanitarie sono per chi ha la laurea della stessa area.</li>
       <li>Abbiamo provato il calcolo con i testi dei requisiti delle magistrali che nominano le classi di laurea ammesse: una magistrale che nomina la classe della triennale sta sopra una che non la nomina in circa 9 casi su 10.</li>
       <li>Il <a href="#magistrale">quiz per la magistrale</a> usa lo stesso calcolo, con gli esami che hai segnato tu, e ci aggiunge quello che ti è piaciuto e cosa cerchi. Un limite: marketing e management stanno nello stesso settore scientifico, e il quiz non li distingue.</li>
+    </ul>
+    <h2>Come leggere i numeri dei laureati</h2>
+    <ul>
+      <li>Vengono dall’indagine AlmaLaurea del 2025: chi si è laureato nel 2024 ha risposto sugli studi; chi si è laureato nel 2023, nel 2021 e nel 2019 è stato intervistato a uno, tre e cinque anni dalla laurea (tre e cinque solo per magistrali e cicli unici). Regolarità, voti, durata e provenienza riguardano tutti i laureati; il resto chi ha risposto.</li>
+      <li>Sotto ogni numero c’è lo stesso numero per tutti i laureati della classe di laurea negli atenei di AlmaLaurea, e la posizione del corso tra quelli della stessa classe che abbiamo trovato in AlmaLaurea: «più alto di 8 corsi su 10» vuol dire che 8 corsi su 10 della classe hanno un valore più basso. Tra 4 e 6 su 10 scriviamo «nella media». La posizione si dà solo se nella classe ci sono almeno altri 5 corsi con abbastanza risposte.</li>
+      <li>Un numero che si regge su meno di 10 risposte non si mostra: con così pochi casi ballerebbe troppo da un anno all’altro.</li>
+      <li>Lavora chi ha un’attività retribuita, anche di formazione (tirocinio, dottorato con borsa), come nella definizione dell’ISTAT. Stipendio, contratto, efficacia della laurea e lavoro all’estero riguardano chi lavora. Il voto medio di laurea può superare 110 perché AlmaLaurea conta la lode come 113.</li>
+      <li>I numeri dicono com’è andata a chi si è laureato, non a chi ha lasciato il corso. E dipendono anche da chi si iscrive: un corso a numero programmato, che seleziona all’ingresso, ha di solito più laureati in corso e voti più alti.</li>
+      <li>Ogni corso è abbinato alla sua scheda AlmaLaurea e alla sua riga del Ministero solo quando ateneo, classe e nome coincidono (o il nome è chiaramente lo stesso corso rinominato); nel dubbio il corso resta senza numeri. Quando AlmaLaurea non distingue le sedi di un corso, la pagina lo dice.</li>
+      <li>Gli iscritti contano tutti gli anni di corso, fuori corso compresi. L’andamento rispetto al 2022/23 si mostra solo per i corsi che esistevano già nel 2016/17: un corso più giovane cresce comunque, perché si riempiono gli anni successivi al primo.</li>
     </ul>
     <h2>Privacy</h2>
     <p>${PAGINE ? 'Senza il tuo consenso il sito non usa cookie e non chiede niente a servizi esterni; con il consenso usa Google Analytics, solo per contare le visite. <a href="privacy.html">Tutti i dettagli</a>.' : `${NOME} non usa cookie, non traccia le visite e non chiede dati a servizi esterni.`} Il comune di partenza e i corsi messi a confronto restano salvati solo nel tuo browser, per ritrovarli la volta dopo.</p>
@@ -1100,7 +1211,7 @@ function disegnaRotta(inCima) {
   if (nome !== 'magistrale' && sezione === 'quiz' && !S.orientamento) caricaOrientamento().then(() => disegna(false)).catch(e => { if (['quiz', 'profilo'].includes(rotta().nome)) mostraErrore(e); });
   if (nome === 'casa') requestAnimationFrame(() => disegnaMappa($('#mappa-casa'), S.corsi.filter(c => !c.fuori), { grande: true }));
   if (nome === 'esplora' && S.mappa) requestAnimationFrame(() => disegnaMappa($('#mappa-esplora'), trova()));
-  if (nome === 'corso') { riempiPiano(S.corsi[+arg]); riempiLaureati(S.corsi[+arg]); riempiDopo(S.corsi[+arg]); }
+  if (nome === 'corso') { riempiPiano(S.corsi[+arg]); riempiNumeri(S.corsi[+arg]); riempiDopo(S.corsi[+arg]); }
   if (nome === 'dopo' && S.corsi[+arg] && !(S.corsi[+arg].ateneo in S.dopo)) dopoDi(S.corsi[+arg]).then(() => { if (rotta().nome === 'dopo') disegna(false); });
   if (nome === 'materie' && statoMaterie.q && !S.esami) caricaEsami().then(() => { const r = $('#risultati-materia'); if (r) r.innerHTML = risultatiMaterie(); });
   window.scrollTo(0, inCima ? 0 : y);

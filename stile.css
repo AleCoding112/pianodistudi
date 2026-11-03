@@ -212,6 +212,21 @@ select { appearance: none; -webkit-appearance: none; height: 40px; border: 1px s
 .cifre-laureati span { font-size: .88rem; line-height: 1.35; }
 .cifre-laureati small { color: var(--tenue); font-size: .78rem; margin-top: 4px; font-variant-numeric: tabular-nums; }
 .laureati .nota { max-width: 75ch; }
+.cifre-laureati .dettaglio { color: var(--tenue); font-size: .8rem; }
+.laureati + .laureati { margin-top: 32px; }
+table.dopo-laurea { border-collapse: separate; border-spacing: 0; width: 100%; }
+.dopo-laurea th, .dopo-laurea td { padding: 11px 14px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--linea); }
+.dopo-laurea tr:last-child td, .dopo-laurea tr:last-child th { border-bottom: 0; }
+.dopo-laurea thead th { font-family: var(--f-titoli); font-size: .95rem; white-space: nowrap; }
+.dopo-laurea thead small { display: block; font-family: var(--f-testo); font-weight: 400; color: var(--tenue); font-size: .78rem; }
+.dopo-laurea th[scope="row"] { font-weight: 600; font-size: .9rem; width: 30%; min-width: 130px; }
+.dopo-laurea td { min-width: 120px; }
+.dopo-laurea td b { font-family: var(--f-titoli); font-size: 1.2rem; font-weight: 800; letter-spacing: -.01em; font-variant-numeric: tabular-nums; display: block; }
+.dopo-laurea td small { display: block; color: var(--tenue); font-size: .76rem; line-height: 1.35; margin-top: 2px; font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) {
+  .dopo-laurea th[scope="row"] { position: sticky; left: 0; background: var(--foglio); box-shadow: 1px 0 0 var(--linea); min-width: 110px; font-size: .84rem; }
+  .dopo-laurea td { min-width: 112px; }
+}
 .nota-filtro { font-size: .8rem; color: var(--tenue); margin: -2px 0 2px; line-height: 1.4; }
 .filtri input[type="search"] { width: 100%; }
 .nota-filtro.forte { color: inherit; font-weight: 600; margin-top: 6px; }
