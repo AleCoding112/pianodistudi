@@ -92,7 +92,7 @@ async function carica() {
   const D = ind.diz;
   S.corsi = ind.corsi.map((v, i) => {
     const c = { i, nome: v[0], ateneo: D.ateneo[v[1]], classe: v[2], tipo: D.tipo[v[3]], area: D.area[v[4]], gruppo: D.gruppo[v[5]], comune: v[6],
-      accesso: D.accesso[v[7]], didattica: D.didattica[v[8]], lingua: D.lingua[v[9]], sito: v[10], piano: v[11], fuori: !!v[12], nomeClasse: v[13], posti: v[14], comp: v[15], sitoAteneo: !!v[16], durata: v[17], test: v[18] || null, variante: v[19] || null };
+      accesso: D.accesso[v[7]], didattica: D.didattica[v[8]], lingua: D.lingua[v[9]], sito: v[10], piano: v[11], fuori: !!v[12], nomeClasse: v[13], posti: v[14], comp: v[15], sitoAteneo: !!v[16], durata: v[17], test: v[18] || null, variante: v[19] || null, titolo: v[20] || null };
     c.ateneoNome = S.atenei[c.ateneo] || c.ateneo || '';
     c.quote = c.comp ? Object.fromEntries(c.comp.split('.').map(p => [p.slice(0, 3), +p.slice(3)])) : null;
     const x = S.comuni[c.comune];
@@ -418,6 +418,20 @@ function regolaAccesso(c) {
   const lingua = c.lingua === 'Inglese' ? 'inglese' : c.lingua === 'Italiano' ? 'italiano' : null, statale = S.statali[c.ateneo];
   return S.regoleAccesso.regole.find(([classi, l, s]) => new RegExp(classi).test(c.classe || '') && (l == null || l === lingua) && (s == null || s === statale)) || null;
 }
+// doppio titolo, titolo congiunto, convenzione con un ateneo straniero: solo dove lo dichiara il catalogo dell'ateneo
+// (campo corsiConsorziati dei cataloghi Cineca). Non esiste un elenco completo: dove manca, non vuol dire che non ci sia
+function htmlTitolo(c) {
+  if (!c.titolo) return '';
+  // i nomi tutti in maiuscolo, come li scrive a volte il catalogo, con le maiuscole dei nomi propri
+  const PICCOLE = new Set(['of', 'de', 'del', 'della', 'di', 'da', 'la', 'le', 'des', 'du', 'and', 'e', 'y', 'für', 'der', 'van', 'in']);
+  const proprio = n => n !== n.toUpperCase() ? n : n.toLowerCase().split(' ').map((w, k) => k && PICCOLE.has(w) ? w : w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  const [tipo, altri] = c.titolo, chi = altri.map(n => esc(proprio(n))).join(', ');
+  const nota = 'Non esiste un elenco completo dei corsi con doppio titolo: dove questo sito non lo indica, potrebbe esserci comunque.';
+  const frase = tipo === 'D' ? `<b>Doppio titolo.</b> Il catalogo dell’ateneo dichiara un doppio titolo con: ${chi}. Per chi vale e a quali condizioni lo dice il sito del corso. ${nota}`
+    : tipo === 'S' ? `<b>Titolo congiunto.</b> Il catalogo dell’ateneo dichiara un titolo congiunto con: ${chi}. Per chi vale e a quali condizioni lo dice il sito del corso. ${nota}`
+    : `<b>In convenzione con:</b> ${chi}. Il catalogo dell’ateneo non dice se c’è un doppio titolo: controlla sul sito del corso.`;
+  return `<p class="nota regola-accesso">${frase}</p>`;
+}
 // sotto i dati del corso, a tutta larghezza: la frase è lunga e nella colonna dell'accesso, sul telefono, non ci sta
 function htmlRegolaAccesso(c) {
   const r = regolaAccesso(c);
@@ -526,6 +540,7 @@ function vistaCorso(i) {
       <div><dt>Didattica</dt><dd>${esc(c.didattica || '—')}</dd></div>
     </dl>
     ${htmlRegolaAccesso(c)}
+    ${htmlTitolo(c)}
     ${gemelli(c)}
     <div id="piano">${c.piano ? '<p class="caricamento">Carico il piano degli esami…</p>' : sezioneSenzaPiano(c)}</div>
     <div id="testi"></div>
