@@ -44,7 +44,8 @@ const maiuscola = t => t ? t.charAt(0).toUpperCase() + t.slice(1) : t;
 // il nome del corso con ciò che lo distingue da un altro dello stesso ateneo con lo stesso nome («Farmacia — Tirana»)
 const nomeIntero = c => titoloCorso(c.nome) + (c.variante ? ` — ${c.variante}` : '');
 const htmlVariante = c => c.variante ? ` <span class="variante">· ${esc(c.variante)}</span>` : '';
-function cittaDi(c) { const x = S.comuni[c.comune]; return x ? x[0] : ''; }
+// più sedi («Imola e Bologna») o una sede all'estero («Tirana (Albania)»), da costruisci-sito.py; altrimenti il comune
+function cittaDi(c) { if (c.sedi) return c.sedi; const x = S.comuni[c.comune]; return x ? x[0] : ''; }
 function regioneDi(c) { const x = S.comuni[c.comune]; return x ? S.regioni[x[4]] : ''; }
 function km(a, b) {
   const A = S.comuni[a], B = S.comuni[b]; if (!A || !B) return null;
@@ -87,12 +88,12 @@ async function json(url) {
 }
 async function carica() {
   const [ind, com] = await Promise.all([json('dati/indice.json'), json('dati/comuni.json')]);
-  S.diz = ind.diz; S.atenei = ind.atenei; S.macro = ind.macro; S.settori = (ind.settori || []).map(([r, k]) => [new RegExp(r), k]); S.nomiSettori = ind.nomiSettori || {}; S.motivi = ind.motivi; S.statali = ind.statali || {}; S.regoleAccesso = ind.regoleAccesso || null; S.comuni = com.comuni; S.regioni = com.regioni; S.aggiornato = ind.aggiornato;
+  S.diz = ind.diz; S.atenei = ind.atenei; S.macro = ind.macro; S.settori = (ind.settori || []).map(([r, k]) => [new RegExp(r), k]); S.nomiSettori = ind.nomiSettori || {}; S.motivi = ind.motivi; S.statali = ind.statali || {}; S.doppiAtenei = ind.doppiAtenei || []; S.regoleAccesso = ind.regoleAccesso || null; S.comuni = com.comuni; S.regioni = com.regioni; S.aggiornato = ind.aggiornato;
   const d = $('#aggiornato'); if (d && S.aggiornato) d.textContent = dataLunga(S.aggiornato);
   const D = ind.diz;
   S.corsi = ind.corsi.map((v, i) => {
     const c = { i, nome: v[0], ateneo: D.ateneo[v[1]], classe: v[2], tipo: D.tipo[v[3]], area: D.area[v[4]], gruppo: D.gruppo[v[5]], comune: v[6],
-      accesso: D.accesso[v[7]], didattica: D.didattica[v[8]], lingua: D.lingua[v[9]], sito: v[10], piano: v[11], fuori: !!v[12], nomeClasse: v[13], posti: v[14], comp: v[15], sitoAteneo: !!v[16], durata: v[17], test: v[18] || null, variante: v[19] || null, titolo: v[20] || null };
+      accesso: D.accesso[v[7]], didattica: D.didattica[v[8]], lingua: D.lingua[v[9]], sito: v[10], piano: v[11], fuori: !!v[12], nomeClasse: v[13], posti: v[14], comp: v[15], sitoAteneo: !!v[16], durata: v[17], test: v[18] || null, variante: v[19] || null, titolo: v[20] || null, sedi: v[21] || null, doppio: v[22] || null };
     c.ateneoNome = S.atenei[c.ateneo] || c.ateneo || '';
     c.quote = c.comp ? Object.fromEntries(c.comp.split('.').map(p => [p.slice(0, 3), +p.slice(3)])) : null;
     const x = S.comuni[c.comune];
@@ -421,7 +422,8 @@ function regolaAccesso(c) {
 // doppio titolo, titolo congiunto, convenzione con un ateneo straniero: solo dove lo dichiara il catalogo dell'ateneo
 // (campo corsiConsorziati dei cataloghi Cineca). Non esiste un elenco completo: dove manca, non vuol dire che non ci sia
 function htmlTitolo(c) {
-  if (!c.titolo) return '';
+  if (!c.titolo && !c.doppio) return '';
+  if (!c.titolo) return htmlDoppio(c);
   // i nomi tutti in maiuscolo, come li scrive a volte il catalogo, con le maiuscole dei nomi propri
   const PICCOLE = new Set(['of', 'de', 'del', 'della', 'di', 'da', 'la', 'le', 'des', 'du', 'and', 'e', 'y', 'für', 'der', 'van', 'in']);
   const proprio = n => n !== n.toUpperCase() ? n : n.toLowerCase().split(' ').map((w, k) => k && PICCOLE.has(w) ? w : w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
@@ -430,7 +432,19 @@ function htmlTitolo(c) {
   const frase = tipo === 'D' ? `<b>Doppio titolo.</b> Il catalogo dell’ateneo dichiara un doppio titolo con: ${chi}. Per chi vale e a quali condizioni lo dice il sito del corso. ${nota}`
     : tipo === 'S' ? `<b>Titolo congiunto.</b> Il catalogo dell’ateneo dichiara un titolo congiunto con: ${chi}. Per chi vale e a quali condizioni lo dice il sito del corso. ${nota}`
     : `<b>In convenzione con:</b> ${chi}. Il catalogo dell’ateneo non dice se c’è un doppio titolo: controlla sul sito del corso.`;
-  return `<p class="nota regola-accesso">${frase}</p>`;
+  return `<p class="nota regola-accesso">${frase}</p>` + htmlDoppio(c);
+}
+// doppio titolo dalle pagine ufficiali «doppio titolo / double degree» degli atenei controllati (costruisci-sito.py,
+// DOPPI_ATENEI): [tipo, per chi, partner, pagina]. Per chi lo dice la pagina; se non lo dice, lo si scrive
+function htmlDoppio(c) {
+  if (!c.doppio) return '';
+  const TIPI = { D: 'Doppio titolo', M: 'Titolo multiplo', DM: 'Doppio o multiplo titolo', C: 'Titolo congiunto', X: 'Doppio titolo o titolo congiunto' };
+  const CHI = { s: 'solo per gli studenti selezionati per il programma', t: 'per tutti gli iscritti' };
+  const controllati = (S.doppiAtenei || []).map(a => S.atenei[a] || a).join(', ');
+  const righe = c.doppio.map(([tipo, chi, soci, url]) => `<b>${esc(TIPI[tipo] || TIPI.X)}</b>${soci && soci.length ? ` con ${esc(soci.join(', '))}` : ''}: `
+    + `${chi ? esc(CHI[chi]) : 'la pagina dell’ateneo non dice se vale per tutti gli iscritti o solo per chi viene selezionato'}.`
+    + `${url ? ` <a href="${esc(url)}" target="_blank" rel="noopener">Fonte: pagina dell’ateneo</a>.` : ''}`);
+  return `<p class="nota regola-accesso">${righe.join('<br>')} <span class="tenue">Elenco costruito dalle pagine ufficiali di questi atenei: ${esc(controllati)}; per gli altri non è controllato.</span></p>`;
 }
 // sotto i dati del corso, a tutta larghezza: la frase è lunga e nella colonna dell'accesso, sul telefono, non ci sta
 function htmlRegolaAccesso(c) {
