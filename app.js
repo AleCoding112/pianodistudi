@@ -661,8 +661,12 @@ function htmlPiano(c, p, tabella) {
     // la fonte mette quasi tutto in gruppi «non obbligatori» senza crediti: non si può dire che siano scelte
     conti = `Per questo corso il catalogo dell’ateneo non distingue bene gli esami obbligatori da quelli a scelta: molti esami nei gruppi qui sotto sono probabilmente obbligatori. Controlla il piano sul sito del corso.`;
   } else if (pieno && !incompleto && senza.length === 1 && tot === totMax && tot < pieno && stimaPossibile(senza[0], pieno - tot)) {
-    // un solo gruppo senza crediti e tutto il resto noto: i crediti che mancano al titolo sono, con buona probabilità, i suoi
+    // un solo gruppo senza crediti e tutto il resto noto: i crediti che mancano al titolo sono, con buona probabilità, i suoi.
+    // Se il piano non ha crediti a scelta libera, quei crediti possono essere proprio quelli: spesso si prendono anche fuori
+    // dall'elenco (Biologia a Padova: 12 CFU «a libera scelta», con quattro insegnamenti attivati apposta, ma va bene anche
+    // un altro insegnamento coerente con il percorso, con il piano approvato dal corso)
     senza[0].stima = pieno - tot;
+    senza[0].forseLiberi = !tuttiAnni.some(a => a.blocchi.some(b => b.s && b !== senza[0] && (!b.esami.length || /scelta\s+(libera|dello\s+studente|autonoma)|libera\s+scelta|crediti\s+liberi|elective|free\s+choice/i.test(b.e || ''))));
   } else if (pieno && !incompleto && !(tot <= pieno && pieno <= totMax)) {
     if (tot > pieno) conti = `I crediti elencati qui fanno ${fmt(tot)}, più dei ${fmt(pieno)} del titolo: alcune attività sono probabilmente alternative tra loro. Controlla le regole sul sito del corso.`;
     else if (senzaCrediti) conti = `I crediti indicati qui arrivano a ${fmt(totMax)} su ${fmt(pieno)}: il resto si sceglie nei gruppi per cui l’ateneo non indica quanti crediti servono (li trovi nel regolamento del corso).`;
@@ -693,7 +697,9 @@ function htmlAnno(a) {
     ${gruppi.map(b => `<div class="gruppo${b.x ? ' extra' : ''}">
       <div class="regola"><b>${regolaGruppo(b)}</b><span class="codice tenue">${b.esami.length ? `${b.esami.length} ${b.esami.length === 1 ? 'opzione' : 'opzioni'}` : ''}</span></div>
       ${b.e ? `<div class="orig">${esc(b.e)}</div>` : ''}
-      ${b.stima ? `<p class="nota">L’ateneo non dice quanti crediti scegliere qui, ma per arrivare ai crediti del titolo ne mancano ${fmt(b.stima)}: probabilmente sono quelli di questo gruppo. Il numero esatto è nel regolamento del corso.</p>`
+      ${b.stima ? `<p class="nota">${b.forseLiberi
+        ? `L’ateneo non dice quanti crediti scegliere qui. Per arrivare ai crediti del titolo ne mancano ${fmt(b.stima)}, e il piano non ha altri crediti a scelta libera: possono essere quelli di questo gruppo, oppure crediti a scelta libera, che spesso si possono prendere anche fuori da questo elenco. Il numero esatto e le regole sono nel regolamento del corso.`
+        : `L’ateneo non dice quanti crediti scegliere qui, ma per arrivare ai crediti del titolo ne mancano ${fmt(b.stima)}: probabilmente sono quelli di questo gruppo. Il numero esatto è nel regolamento del corso.`}</p>`
         : !b.c && !b.m && !b.x && !b.k ? '<p class="nota">Qui l’ateneo non indica quanti crediti scegliere: controlla il regolamento del corso.</p>' : ''}
       ${(b.n || []).map(n => `<p class="nota">${esc(n)}</p>`).join('')}
       ${b.esami.length ? opzioniGruppo(b.esami) : '<p class="nota">Le opzioni non sono elencate: di solito si sceglie tra tutti gli esami dell’ateneo.</p>'}
