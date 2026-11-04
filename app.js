@@ -441,10 +441,13 @@ function htmlDoppio(c) {
   const TIPI = { D: 'Doppio titolo', M: 'Titolo multiplo', DM: 'Doppio o multiplo titolo', C: 'Titolo congiunto', X: 'Doppio titolo o titolo congiunto' };
   const CHI = { s: 'solo per gli studenti selezionati per il programma', t: 'per tutti gli iscritti' };
   const controllati = (S.doppiAtenei || []).map(a => S.atenei[a] || a).join(', ');
-  const righe = c.doppio.map(([tipo, chi, soci, url]) => `<b>${esc(TIPI[tipo] || TIPI.X)}</b>${soci && soci.length ? ` con ${esc(soci.join(', '))}` : ''}: `
-    + `${chi ? esc(CHI[chi]) : 'la pagina dell’ateneo non dice se vale per tutti gli iscritti o solo per chi viene selezionato'}.`
+  // cond: il limite che la fonte dice (un curriculum, quando candidarsi), verificato (costruisci-sito.py, _doppi)
+  // (senza «per chi» il sito non dice che la pagina non lo dice: l'elenco dell'ateneo non lo dice, ma la pagina del corso
+  // spesso sì, un curriculum o un bando; verifica del 4/11/2026, verifica/ricerche/doppio-titolo-pubblica-verifica-*.md)
+  const righe = c.doppio.map(([tipo, chi, soci, url, cond]) => `<b>${esc(TIPI[tipo] || TIPI.X)}</b>${soci && soci.length ? ` con ${esc(soci.join(', '))}` : ''}`
+    + `${chi ? `: ${esc(CHI[chi])}${cond ? `; ${esc(cond)}` : ''}` : cond ? `: ${esc(cond)}` : tipo === 'C' ? ': un solo titolo, riconosciuto da tutti gli atenei del programma' : ''}.`
     + `${url ? ` <a href="${esc(url)}" target="_blank" rel="noopener">Fonte: pagina dell’ateneo</a>.` : ''}`);
-  return `<p class="nota regola-accesso">${righe.join('<br>')} <span class="tenue">Le condizioni (un curriculum, i posti, quando candidarsi: a volte già durante la triennale) le dice la pagina del programma. Elenco costruito dalle pagine ufficiali di questi atenei: ${esc(controllati)}; per gli altri non è controllato.</span></p>`;
+  return `<p class="nota regola-accesso">${righe.join('<br>')} <span class="tenue">Per chi vale (tutti gli iscritti, un curriculum, chi vince un bando) e quando candidarsi (a volte già durante la triennale) lo dice la pagina del programma, quando l’ateneo lo scrive. Elenco costruito dalle pagine ufficiali di questi atenei: ${esc(controllati)}; per gli altri non è controllato.</span></p>`;
 }
 // sotto i dati del corso, a tutta larghezza: la frase è lunga e nella colonna dell'accesso, sul telefono, non ci sta
 function htmlRegolaAccesso(c) {
