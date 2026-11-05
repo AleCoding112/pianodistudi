@@ -689,3 +689,4 @@ button.riga { width: 100%; background: none; border: 0; border-bottom: 1px solid
   .voto-btn { padding: 6px 10px; }
   .voto-btn:not(.piu):not(.meno) { padding: 6px 12px; }
 }
+.lavoro-riga { font-size: .82rem; color: var(--tenue); margin-top: 4px; }

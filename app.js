@@ -2,7 +2,7 @@
 /* ---------------- stato e utilità ---------------- */
 // inglese: '' | 'tutto' (solo corsi in inglese) | 'anche' (anche in parte); voglio/evito: aree di S.macro; peso: quota minima
 // (%) delle aree volute negli esami obbligatori; quanto: 'niente' | 'poco' per le aree da escludere
-const filtriVuoti = () => ({ q: '', tipo: '', gruppo: '', regione: '', accesso: '', inglese: '', distanza: false, piano: false, comune: '', classe: '',
+const filtriVuoti = () => ({ q: '', tipo: '', gruppo: '', regione: '', accesso: '', inglese: '', distanza: false, piano: false, doppioTitolo: false, comune: '', classe: '',
   voglio: [], peso: 50, evito: [], quanto: 'niente', esame: '' });
 const S = { corsi: [], atenei: {}, diz: {}, macro: [], settori: [], motivi: {}, comuni: {}, regioni: {}, piani: {}, testi: {}, dopo: {}, esami: null,
   filtri: filtriVuoti(),
@@ -87,13 +87,15 @@ async function json(url) {
   try { return await r.json(); } catch (e) { throw errore(e.message); }
 }
 async function carica() {
-  const [ind, com] = await Promise.all([json('dati/indice.json'), json('dati/comuni.json')]);
+  // chi lavora un anno dopo la laurea (AlmaLaurea), per l'elenco: se il file non arriva l'elenco resta senza
+  const [ind, com, lav] = await Promise.all([json('dati/indice.json'), json('dati/comuni.json'), json('dati/lavoro.json').catch(() => null)]);
+  S.annoLavoro = lav?.anno;
   S.diz = ind.diz; S.atenei = ind.atenei; S.macro = ind.macro; S.settori = (ind.settori || []).map(([r, k]) => [new RegExp(r), k]); S.nomiSettori = ind.nomiSettori || {}; S.motivi = ind.motivi; S.statali = ind.statali || {}; S.doppiAtenei = ind.doppiAtenei || []; S.regoleAccesso = ind.regoleAccesso || null; S.comuni = com.comuni; S.regioni = com.regioni; S.aggiornato = ind.aggiornato;
   const d = $('#aggiornato'); if (d && S.aggiornato) d.textContent = dataLunga(S.aggiornato);
   const D = ind.diz;
   S.corsi = ind.corsi.map((v, i) => {
     const c = { i, nome: v[0], ateneo: D.ateneo[v[1]], classe: v[2], tipo: D.tipo[v[3]], area: D.area[v[4]], gruppo: D.gruppo[v[5]], comune: v[6],
-      accesso: D.accesso[v[7]], didattica: D.didattica[v[8]], lingua: D.lingua[v[9]], sito: v[10], piano: v[11], fuori: !!v[12], nomeClasse: v[13], posti: v[14], comp: v[15], sitoAteneo: !!v[16], durata: v[17], test: v[18] || null, variante: v[19] || null, titolo: v[20] || null, sedi: v[21] || null, doppio: v[22] || null };
+      accesso: D.accesso[v[7]], didattica: D.didattica[v[8]], lingua: D.lingua[v[9]], sito: v[10], piano: v[11], fuori: !!v[12], nomeClasse: v[13], posti: v[14], comp: v[15], sitoAteneo: !!v[16], durata: v[17], test: v[18] || null, variante: v[19] || null, titolo: v[20] || null, sedi: v[21] || null, doppio: v[22] || null, lavoro: lav?.corsi?.[i] || null };
     c.ateneoNome = S.atenei[c.ateneo] || c.ateneo || '';
     c.quote = c.comp ? Object.fromEntries(c.comp.split('.').map(p => [p.slice(0, 3), +p.slice(3)])) : null;
     const x = S.comuni[c.comune];
@@ -187,6 +189,7 @@ function trova() {
     if (f.esame && S.esami && !corsiConEsame(f.esame).has(c.i)) return false;
     if (f.distanza && !/distanza/i.test(c.didattica || '')) return false;
     if (f.piano && !c.piano) return false;
+    if (f.doppioTitolo && !conDoppioTitolo(c)) return false;
     return parole.every(forme => forme.some(p => c.cerca.includes(p)));
   });
   const punti = c => {
@@ -200,9 +203,16 @@ function trova() {
   };
   if (S.ordine === 'distanza' && S.casa) r.sort((a, b) => (distanzaDi(a) ?? 1e9) - (distanzaDi(b) ?? 1e9));
   else if (S.ordine === 'nome') r.sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
+  else if (S.ordine === 'lavoro' && ordinePerLavoro(r)) r.sort((a, b) => fasciaLavoro(b) - fasciaLavoro(a) || (b.lavoro?.[0] ?? -1) - (a.lavoro?.[0] ?? -1) || (b.lavoro?.[2] || 0) - (a.lavoro?.[2] || 0) || a.nome.localeCompare(b.nome, 'it'));
   else r.sort((a, b) => punti(b) - punti(a) || piace(b) - piace(a) || (S.casa ? (distanzaDi(a) ?? 1e9) - (distanzaDi(b) ?? 1e9) : 0) || a.nome.localeCompare(b.nome, 'it'));
   return r;
 }
+// per chi lavora un anno dopo la laurea si ordinano solo magistrali e cicli unici: dopo una triennale quasi tutti
+// continuano a studiare, e lavora di meno chi si iscrive di più alla magistrale
+const ordinePerLavoro = r => r.length > 0 && r.every(c => c.tipo !== 'triennale');
+// prima i corsi con almeno RISPOSTE_LAVORO intervistati, poi quelli con meno (le percentuali su pochi ballano), poi quelli senza
+const RISPOSTE_LAVORO = 30;
+const fasciaLavoro = c => c.lavoro?.[0] == null ? 0 : c.lavoro[2] >= RISPOSTE_LAVORO ? 2 : 1;
 // «cosa vuoi studiare»: quanta parte dei crediti obbligatori è nelle aree scelte (le quote sotto il 3% non sono nell'indice)
 const MAX_POCO = 10;
 const piace = c => S.filtri.voglio.reduce((t, k) => t + (c.quote?.[k] || 0), 0);
@@ -330,7 +340,7 @@ function vistaEsplora() {
     <section id="risultati-esplora">${risultatiEsplora()}</section>
   </div>`;
 }
-const filtriAttivi = f => ['tipo', 'gruppo', 'regione', 'accesso', 'inglese', 'distanza', 'piano', 'comune', 'classe', 'voglio', 'evito', 'esame'].filter(k => Array.isArray(f[k]) ? f[k].length : f[k]).length;
+const filtriAttivi = f => ['tipo', 'gruppo', 'regione', 'accesso', 'inglese', 'distanza', 'piano', 'doppioTitolo', 'comune', 'classe', 'voglio', 'evito', 'esame'].filter(k => Array.isArray(f[k]) ? f[k].length : f[k]).length;
 const PESI = [[25, 'Almeno un quarto'], [50, 'Almeno metà'], [75, 'Quasi tutto']];
 function filtriEsplora() {
   const f = S.filtri;
@@ -373,15 +383,18 @@ function filtriEsplora() {
       <fieldset><legend>Altro</legend>
         <label class="interruttore"><input type="checkbox" id="f-piano" data-filtro-check="piano" ${f.piano ? 'checked' : ''}> Solo con il piano degli esami</label>
         <label class="interruttore"><input type="checkbox" id="f-distanza" data-filtro-check="distanza" ${f.distanza ? 'checked' : ''}> A distanza (telematico)</label>
+        <label class="interruttore"><input type="checkbox" id="f-doppio" data-filtro-check="doppioTitolo" aria-describedby="f-doppio-nota" ${f.doppioTitolo ? 'checked' : ''}> Con doppio titolo o titolo congiunto</label>
+        <p class="nota-filtro" id="f-doppio-nota">Solo dove l’ateneo lo dichiara: un elenco completo non esiste, e un corso che qui manca può averlo comunque.</p>
       </fieldset>
       ${filtriAttivi(f) ? '<button type="button" class="btn" data-azione="azzera">Togli i filtri</button>' : ''}`;
 }
 function risultatiEsplora() {
-  const r = trova(), f = S.filtri, attivi = filtriAttivi(f);
+  const r = trova(), f = S.filtri, attivi = filtriAttivi(f), perLavoro = ordinePerLavoro(r);
   const attesaEsami = f.esame && !S.esami;
   const esameIn = f.esame && S.esami ? corsiConEsame(f.esame) : null;
   const note = [f.voglio.length || f.evito.length ? 'solo corsi di cui conosciamo gli esami obbligatori' : '',
-    esameIn && IA_CERCATA.has(norma(f.esame)) ? 'esami di intelligenza artificiale, machine learning, deep learning, reti neurali' : ''].filter(Boolean);
+    esameIn && IA_CERCATA.has(norma(f.esame)) ? 'esami di intelligenza artificiale, machine learning, deep learning, reti neurali' : '',
+    S.ordine === 'lavoro' && perLavoro ? `in ordine di laureati che lavorano un anno dopo la laurea (AlmaLaurea, laureati del ${S.annoLavoro}): prima i corsi con almeno ${RISPOSTE_LAVORO} intervistati, poi quelli con meno, in fondo quelli senza dati. Dipende anche da chi si iscrive e da dove: non è un voto al corso` : ''].filter(Boolean);
   const quota = c => f.voglio.length ? `<div class="quota-scelta">${esc(elencoSemplice(f.voglio.map(k => nomeMacro(k))))}: ${piace(c)}% degli esami obbligatori</div>` : '';
   const riga = c => rigaCorso(c, quota(c) + (esameIn && esameIn.has(c.i) ? `<div class="esami-trovati">${esc(esameIn.get(c.i).map(titoloCorso).join(' · '))}</div>` : ''));
   const titolo = f.classe ? `Classe ${esc(f.classe)}` : f.comune ? `Corsi a ${esc(S.comuni[f.comune]?.[0] || '')}` : f.q ? `«${esc(f.q)}»` : f.gruppo ? esc(f.gruppo) : f.tipo === 'primo' ? 'Corsi dopo il diploma' : 'Tutti i corsi';
@@ -392,7 +405,7 @@ function risultatiEsplora() {
         <div class="destra">
           <button type="button" class="btn mostra-filtri" data-azione="mostra-filtri" aria-controls="filtri" aria-expanded="${!!S.filtriAperti}">Filtri${attivi ? ` (${attivi})` : ''}</button>
           <button type="button" class="btn" data-azione="mappa" aria-pressed="${S.mappa}">Mappa</button>
-          <select id="ordine" aria-label="Ordina" style="width:auto"><option value="pertinenza" ${S.ordine === 'pertinenza' ? 'selected' : ''}>Più pertinenti</option><option value="distanza" ${S.ordine === 'distanza' ? 'selected' : ''} ${S.casa ? '' : 'disabled'}>Più vicini${S.casa ? '' : ' (scegli da dove parti)'}</option><option value="nome" ${S.ordine === 'nome' ? 'selected' : ''}>Per nome</option></select>
+          <select id="ordine" aria-label="Ordina" style="width:auto"><option value="pertinenza" ${S.ordine === 'pertinenza' ? 'selected' : ''}>Più pertinenti</option><option value="distanza" ${S.ordine === 'distanza' ? 'selected' : ''} ${S.casa ? '' : 'disabled'}>Più vicini${S.casa ? '' : ' (scegli da dove parti)'}</option><option value="nome" ${S.ordine === 'nome' ? 'selected' : ''}>Per nome</option><option value="lavoro" ${S.ordine === 'lavoro' && perLavoro ? 'selected' : ''} ${perLavoro ? '' : 'disabled'}>Più laureati che lavorano${perLavoro ? '' : ' (solo magistrali e cicli unici)'}</option></select>
         </div>
       </div>
       <div style="margin-bottom:14px">${campoCasa()}</div>
@@ -419,6 +432,9 @@ function regolaAccesso(c) {
   const lingua = c.lingua === 'Inglese' ? 'inglese' : c.lingua === 'Italiano' ? 'italiano' : null, statale = S.statali[c.ateneo];
   return S.regoleAccesso.regole.find(([classi, l, s]) => new RegExp(classi).test(c.classe || '') && (l == null || l === lingua) && (s == null || s === statale)) || null;
 }
+// per il filtro: doppio titolo o titolo congiunto dichiarato dal catalogo o dalle pagine ufficiali dell'ateneo (la sola
+// convenzione con un ateneo straniero no: non dice che ci sia un titolo in più)
+const conDoppioTitolo = c => !!(c.doppio || (c.titolo && (c.titolo[0] === 'D' || c.titolo[0] === 'S')));
 // doppio titolo, titolo congiunto, convenzione con un ateneo straniero: solo dove lo dichiara il catalogo dell'ateneo
 // (campo corsiConsorziati dei cataloghi Cineca). Non esiste un elenco completo: dove manca, non vuol dire che non ci sia
 function htmlTitolo(c) {
@@ -470,13 +486,21 @@ function testoAccesso(c, intero) {
   if (a === 'incerto') return intero ? 'Da controllare' : '';
   return intero ? 'Non indicato' : '';
 }
+// un anno dopo la laurea, dalle schede AlmaLaurea: per una triennale anche chi si è iscritto a una magistrale, perché
+// lavorare subito non è quello che fa la maggior parte
+function lavoroRiga(c) {
+  const [lav, mag, n] = c.lavoro || [];
+  if (lav == null) return '';
+  const t = c.tipo === 'triennale' && mag != null ? `${fmt(mag)}% iscritti a una magistrale, ${fmt(lav)}% lavora (anche studiando)` : `${fmt(lav)}% lavora`;
+  return `<div class="lavoro-riga">Un anno dopo la laurea: ${t} <span class="nowrap">· ${fmt(n)} intervistati</span></div>`;
+}
 function rigaCorso(c, extra = '') {
   const d = distanzaDi(c);
   const accesso = testoAccesso(c, false);
   return `<a class="riga" href="#corso.${c.i}">
     <div style="min-width:0">
       <div class="titolo-riga">${esc(titoloCorso(c.nome))}${htmlVariante(c)}</div>
-      <div class="sotto-riga">${esc(c.ateneoNome)}${cittaDi(c) ? ` · ${esc(cittaDi(c))}` : ''}</div>${extra}
+      <div class="sotto-riga">${esc(c.ateneoNome)}${cittaDi(c) ? ` · ${esc(cittaDi(c))}` : ''}</div>${extra}${lavoroRiga(c)}
       <div class="etichette">
         ${c.classe ? `<span class="etichetta codice" title="${esc(c.nomeClasse || '')}">${esc(c.classe)}</span>` : ''}
         ${c.tipo ? `<span class="etichetta">${TIPI_BREVI[c.tipo] || esc(c.tipo)}</span>` : ''}
@@ -682,13 +706,13 @@ function htmlPiano(c, p, tabella) {
   const presenti = new Set(tuttiAnni.map(a => a.anno).filter(Boolean));
   const mancanti = presenti.size && durata ? Array.from({ length: durata }, (_, k) => k + 1).filter(n => !presenti.has(n)) : [];
   // i crediti mostrati devono fare quelli del titolo: se non tornano lo si dice, invece di lasciar credere che il piano sia completo
-  let tot = 0, totMax = 0, senzaCrediti = false, obbligatori = 0, inGruppiSenzaCrediti = 0; const contati = new Set(), senza = [];
+  let tot = 0, totMax = 0, senzaCrediti = false, obbligatori = 0, inGruppiSenzaCrediti = 0; const contati = new Set(), senza = [], senzaTutti = [];
   for (const a of tuttiAnni) for (const b of a.blocchi) {
     if (b.x) continue;
     if (b.s) {
       const k = /dal\s+\d+°?\s+al\s+\d+°?\s+anno|tra\s+il\s+\d+°?\s+e\s+(?:il\s+)?\d+°?\s+anno/i.test(b.e || '') ? b.e : Symbol();
       if (contati.has(k)) continue; contati.add(k);
-      if (!b.c && !b.m) { senzaCrediti = true; inGruppiSenzaCrediti += b.esami.reduce((s, e) => s + (e.cfu || 0), 0); if (!b.k) senza.push(b); }
+      if (!b.c && !b.m) { senzaCrediti = true; inGruppiSenzaCrediti += b.esami.reduce((s, e) => s + (e.cfu || 0), 0); senzaTutti.push(b); if (!b.k) senza.push(b); }
       tot += b.c || 0; totMax += b.m || b.c || 0;
     } else { const t = b.esami.reduce((s, e) => s + (e.cfu || 0), 0); tot += t; totMax += t; obbligatori += t; }
   }
@@ -698,7 +722,7 @@ function htmlPiano(c, p, tabella) {
   if (pieno && obbligatori < pieno / 2 && inGruppiSenzaCrediti >= pieno - obbligatori && !incompleto) {
     // la fonte mette quasi tutto in gruppi «non obbligatori» senza crediti: non si può dire che siano scelte
     conti = `Per questo corso il catalogo dell’ateneo non distingue bene gli esami obbligatori da quelli a scelta: molti esami nei gruppi qui sotto sono probabilmente obbligatori. Controlla il piano sul sito del corso.`;
-  } else if (pieno && !incompleto && senza.length === 1 && tot === totMax && tot < pieno && stimaPossibile(senza[0], pieno - tot)) {
+  } else if (pieno && !incompleto && senza.length === 1 && tot === totMax && tot < pieno && stimaPossibile(senza, pieno - tot)) {
     // un solo gruppo senza crediti e tutto il resto noto: i crediti che mancano al titolo sono, con buona probabilità, i suoi.
     // Se il piano non ha crediti a scelta libera, quei crediti possono essere proprio quelli: spesso si prendono anche fuori
     // dall'elenco (Biologia a Padova: 12 CFU «a libera scelta», con quattro insegnamenti attivati apposta, ma va bene anche
@@ -707,6 +731,7 @@ function htmlPiano(c, p, tabella) {
     senza[0].forseLiberi = !tuttiAnni.some(a => a.blocchi.some(b => b.s && b !== senza[0] && (!b.esami.length || /scelta\s+(libera|dello\s+studente|autonoma)|libera\s+scelta|crediti\s+liberi|elective|free\s+choice/i.test(b.e || ''))));
   } else if (pieno && !incompleto && !(tot <= pieno && pieno <= totMax)) {
     if (tot > pieno) conti = `I crediti elencati qui fanno ${fmt(tot)}, più dei ${fmt(pieno)} del titolo: alcune attività sono probabilmente alternative tra loro. Controlla le regole sul sito del corso.`;
+    else if (senzaCrediti && !stimaPossibile(senzaTutti, pieno - totMax)) conti = `I crediti indicati qui arrivano a ${fmt(totMax)} su ${fmt(pieno)}, e con gli esami a scelta qui sotto non si arriva esattamente ${pieno - totMax === 1 ? 'al credito che manca' : `ai ${fmt(pieno - totMax)} che mancano`}: una parte del piano (spesso crediti a scelta libera, seminari o altre attività) l’ateneo non la descrive qui. Controlla il regolamento del corso.`;
     else if (senzaCrediti) conti = `I crediti indicati qui arrivano a ${fmt(totMax)} su ${fmt(pieno)}: il resto si sceglie nei gruppi per cui l’ateneo non indica quanti crediti servono (li trovi nel regolamento del corso).`;
     else conti = `I crediti indicati qui arrivano a ${fmt(totMax)} su ${fmt(pieno)}: una parte del piano (spesso le attività a scelta libera) l’ateneo non la descrive qui. Controlla sul sito del corso.`;
   }
@@ -744,11 +769,15 @@ function htmlAnno(a) {
     </div>`).join('')}
   </div>`;
 }
-// i crediti che mancano al titolo possono essere quelli del gruppo se le sue opzioni bastano a farli (e non è più piccolo
-// della più piccola)
-function stimaPossibile(b, resto) {
-  const cfu = b.esami.map(e => e.cfu || 0).filter(Boolean);
-  return !cfu.length || (resto <= cfu.reduce((s, x) => s + x, 0) && resto >= Math.min(...cfu));
+// i crediti che mancano al titolo possono essere quelli dei gruppi senza crediti solo se una scelta delle loro opzioni li fa
+// esatti: con tre esami da 6 CFU se ne fanno 6, 12 o 18, non 17 (Chimica e tecnologia farmaceutiche a Firenze: 6 CFU dal
+// gruppo e 11 di scelta libera e seminari che il catalogo non elenca). Opzioni senza crediti o nessuna opzione: non si sa
+function stimaPossibile(gruppi, resto) {
+  const esami = gruppi.flatMap(b => b.esami);
+  if (!esami.length || esami.some(e => !e.cfu)) return true;
+  const fatti = new Set([0]), m = Math.round(2 * resto);
+  for (const e of esami) for (const s of [...fatti]) { const t = s + Math.round(2 * e.cfu); if (t <= m) fatti.add(t); }
+  return fatti.has(m);
 }
 function opzioniGruppo(esami) {
   // opzioni divise per percorso («PFP 1…», «Gruppo A…»): un titoletto per ciascuno, nell'ordine della fonte
