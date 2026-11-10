@@ -23,6 +23,7 @@ const ICONE = {
   luogo: icona('M20 10c0 5-5.5 10.2-7.4 11.8a1 1 0 0 1-1.2 0C9.5 20.2 4 15 4 10a8 8 0 0 1 16 0zM12 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6z'),
 };
 const ANNO_ACCADEMICO = '2026/27';
+const ANNO_COORTE = ANNO_ACCADEMICO.slice(0, 4);   // l'anno d'iscrizione di cui il sito mostra i piani: un piano di un'altra coorte lo dichiara
 const NOME = 'Piano di Studi';
 // sul sito pubblicato (non nell'artifact) ci sono le pagine indice: i link ci portano anche i motori di ricerca
 const PAGINE = !!document.querySelector('link[rel="canonical"]');
@@ -623,7 +624,7 @@ async function riempiPiano(c) {
     box.innerHTML = htmlPiano(c, p, dati.esami);
   } catch (e) { box.innerHTML = `<p class="nota avviso">Non riesco a caricare il piano (${esc(e.message)}). Riprova tra poco.</p>`; }
   const t = await testiDi(c.ateneo), x = t[c.piano];
-  const tb = $('#testi'); if (tb && x) tb.innerHTML = htmlTesti(x);
+  const tb = $('#testi'); if (tb && x) { tb.innerHTML = htmlTesti(x, ((await pianiDi(c.ateneo)).corsi[c.piano] || {}).f); sistemaTestiLunghi(tb); }
 }
 function esameDa(v) {
   const [nome, cfu, settori, periodo, taf, lingua, moduli, sotto] = v;
@@ -633,7 +634,9 @@ function esameDa(v) {
 function regolaGruppo(b) {
   // i riquadri a parte: i crediti in sovrannumero sono facoltativi; obblighi formativi aggiuntivi e requisiti per
   // l'iscrizione non sono facoltativi per chi li deve fare, ma non danno crediti
-  if (b.x) return /obblighi formativi|requisiti per/i.test(b.e || '') ? 'Senza crediti' : 'Facoltativo';
+  // (titolo «Senza crediti»); test iniziali e corsi obbligatori che il regolamento mette «in sovrannumero» hanno crediti,
+  // ma fuori da quelli del titolo (Pisa, 10/11/2026)
+  if (b.x) return /fuori dai crediti del titolo/i.test(b.e || '') ? 'Fuori dai crediti del titolo' : /obblighi formativi|requisiti per/i.test(b.e || '') ? 'Senza crediti' : 'Facoltativo';
   // percorsi alternativi (pulisci-catalogo.py): se ne sceglie uno intero, con i crediti di un percorso
   if (b.p) return `Scegli un percorso${b.c ? ` · ${fmt(b.c)} CFU` : ''}`;
   // pacchetti di esami da prendere interi (ESSE3, regole contate in blocchi)
@@ -700,8 +703,11 @@ function htmlPiano(c, p, tabella) {
   // alcune fonti pubblicano gli anni di una coorte uno alla volta: lo si dice, invece di lasciar credere che il piano finisca lì
   const ultimo = Math.max(0, ...tuttiAnni.map(a => a.anno || 0));
   // se la coorte 2026/27 non è ancora pubblicata si mostra la più recente, e lo si dice chiaramente
-  const vecchio = fonte.anno && !String(fonte.anno).startsWith('2026')
-    ? `<p class="nota avviso">Questo è il piano di chi si è iscritto nel ${esc(fonte.anno)}: l’ateneo non ha ancora pubblicato quello per chi si iscrive nel 2026/27, che può essere diverso.</p>` : '';
+  // (o la successiva, quando l'ateneo ha già tolto il 2026/27 dal suo sito: Bolzano, pagine 2027/28)
+  const annoPiano = fonte.anno ? +String(fonte.anno).slice(0, 4) : 0, dopo = annoPiano > +ANNO_COORTE;
+  const vecchio = !annoPiano || annoPiano === +ANNO_COORTE ? ''
+    : dopo ? `<p class="nota avviso">Questo è il piano di chi si iscriverà nel ${esc(fonte.anno)}: oggi l’ateneo pubblica solo questo. Per chi si è iscritto nel 2026/27 può essere diverso.</p>`
+    : `<p class="nota avviso">Questo è il piano di chi si è iscritto nel ${esc(fonte.anno)}: l’ateneo non ha ancora pubblicato quello per chi si iscrive nel 2026/27, che può essere diverso.</p>`;
   // anni mancanti: in fondo (pubblicati uno alla volta) o in mezzo (l'anno 1 di una coorte vecchia non è più in catalogo)
   const presenti = new Set(tuttiAnni.map(a => a.anno).filter(Boolean));
   const mancanti = presenti.size && durata ? Array.from({ length: durata }, (_, k) => k + 1).filter(n => !presenti.has(n)) : [];
@@ -740,7 +746,7 @@ function htmlPiano(c, p, tabella) {
       ? `<p class="nota avviso">Qui ${ultimo === 1 ? 'c’è solo il 1° anno' : `ci sono solo i primi ${ultimo} anni`}: per ora il catalogo dell’ateneo pubblica solo questi. Il piano completo è nel regolamento del corso.</p>`
       : `<p class="nota avviso">Qui manca${mancanti.length > 1 ? 'no' : ''} ${mancanti.map(n => `il ${n}° anno`).join(' e ')}: il catalogo dell’ateneo non ${mancanti.length > 1 ? 'li' : 'lo'} pubblica. Il piano completo è nel regolamento del corso.</p>`;
   return `<section class="sezione">
-    <h2>Il piano degli esami <small>${atteso ? `${atteso} <abbr title="crediti formativi universitari: un anno di studio ne vale 60">CFU</abbr> in ${durata} anni` : ''}${fonte.anno ? ` · ${String(fonte.anno).startsWith('2026') ? 'per chi si iscrive nel' : 'piano di chi si è iscritto nel'} ${esc(String(fonte.anno).replace(/^(\d{4})\/\d{2}(\d{2})$/, '$1/$2'))}` : ''}</small></h2>
+    <h2>Il piano degli esami <small>${atteso ? `${atteso} <abbr title="crediti formativi universitari: un anno di studio ne vale 60">CFU</abbr> in ${durata} anni` : ''}${fonte.anno ? ` · ${annoPiano === +ANNO_COORTE ? 'per chi si iscrive nel' : dopo ? 'piano di chi si iscriverà nel' : 'piano di chi si è iscritto nel'} ${esc(String(fonte.anno).replace(/^(\d{4})\/\d{2}(\d{2})$/, '$1/$2'))}` : ''}</small></h2>
     ${p.p.length > 1 ? `<div class="percorsi" role="group" aria-label="Curriculum">${p.p.map(([n], k) => `<button type="button" class="scelta-btn" data-percorso="${k}" aria-pressed="${k === statoPiano.percorso}">${esc(titoloCorso(n))}</button>`).join('')}</div>` : ''}
     ${righe ? `<div class="striscia" role="img" aria-label="Crediti per anno, colorati per area disciplinare">${righe}</div><div class="legenda">${legenda}${ignoti ? legendaIgnoti : ''}</div>${settoriTop}` : ''}
     ${vecchio}${parziale}${conti ? `<p class="nota avviso">${conti}</p>` : ''}
@@ -755,7 +761,7 @@ function htmlAnno(a) {
   const scelte = gruppi.filter(b => !b.x), cfuScelta = scelte.reduce((t, b) => t + (b.c || 0), 0), senzaCfu = scelte.some(b => !b.c);
   const conti = [cfuObb ? `${fmt(Math.round(cfuObb))} CFU obbligatori` : '', cfuScelta ? `${fmt(Math.round(cfuScelta))} a scelta` : '', senzaCfu ? `${cfuScelta ? 'altri' : 'esami'} a scelta` : ''].filter(Boolean);
   return `<div class="anno" id="anno-${a.anno != null ? a.anno : 'qualsiasi'}">
-    <h3>${a.anno != null ? `${a.anno}° anno` : 'In qualsiasi anno'}<span>${a.coorte && String(a.coorte) !== '2026' ? `come per gli iscritti nel ${esc(a.coorte)}/${String(+a.coorte + 1).slice(2)} · ` : ''}${conti.join(' · ')}</span></h3>
+    <h3>${a.anno != null ? `${a.anno}° anno` : 'In qualsiasi anno'}<span>${a.coorte && String(a.coorte) !== ANNO_COORTE ? `come per gli iscritti nel ${esc(a.coorte)}/${String(+a.coorte + 1).slice(2)} · ` : ''}${conti.join(' · ')}</span></h3>
     ${obbl.length ? `<ul class="esami">${obbl.flatMap(b => b.esami).map(htmlEsame).join('')}</ul>` : ''}
     ${gruppi.map(b => `<div class="gruppo${b.x ? ' extra' : ''}">
       <div class="regola"><b>${regolaGruppo(b)}</b><span class="codice tenue">${b.esami.length ? `${b.esami.length} ${b.esami.length === 1 ? 'opzione' : 'opzioni'}` : ''}</span></div>
@@ -810,11 +816,29 @@ function htmlEsame(e) {
     ${info.length || settori ? `<span class="info">${info.map(x => `<span>${esc(x)}</span>`).join('')}${settori ? `<span class="settori-esame">${settori}</span>` : ''}</span>` : ''}
     ${e.moduli ? `<span class="moduli">${e.moduli.map(([n, k]) => `<span>${esc(titoloCorso(n))}${k ? ` · ${fmt(k)} CFU` : ''}</span>`).join('')}</span>` : ''}</li>`;
 }
-function htmlTesti(x) {
-  return `${x.ob ? `<section class="sezione"><h2>Cosa si studia</h2><div class="testo-lungo chiuso" id="testo-ob">${esc(x.ob)}</div><button type="button" class="btn" style="margin-top:10px" data-azione="apri-testo" data-testo="testo-ob" aria-expanded="false" aria-controls="testo-ob">Leggi tutto</button></section>` : ''}
-    ${x.rq ? `<section class="sezione"><h2>Come si entra</h2><div class="testo-lungo chiuso" id="testo-rq">${esc(x.rq)}</div><button type="button" class="btn" style="margin-top:10px" data-azione="apri-testo" data-testo="testo-rq" aria-expanded="false" aria-controls="testo-rq">Leggi tutto</button></section>` : ''}
-    ${x.sb ? `<section class="sezione"><h2>Dopo la laurea</h2><div class="profili">${x.sb.map(([prof, funz, comp, sbo]) => `<div class="profilo"><h3>${esc(titoloCorso((prof || '').split('\n')[0]).slice(0, 160))}</h3>${sbo ? `<p>${esc(sbo).slice(0, 700)}</p>` : funz ? `<p>${esc(funz).slice(0, 700)}</p>` : ''}</div>`).join('')}</div>
-      ${x.pr ? `<h3 style="margin-top:20px;margin-bottom:10px">Professioni (classificazione ISTAT)</h3><div class="mestieri">${x.pr.map(p => `<span class="etichetta">${esc(p)}</span>`).join('')}</div>` : ''}</section>` : ''}`;
+// I testi descrittivi (obiettivi, requisiti, sbocchi) sono quelli che l'ateneo ha scritto nella scheda ufficiale del corso
+// (SUA-CdS, pubblicata nel suo catalogo): si mostrano così come sono, con la fonte e il collegamento, chiusi dietro «Leggi
+// tutto» quando sono lunghi. Per gli atenei non statali i dati contengono solo l'inizio di ogni testo (x.es): il resto si
+// legge alla fonte. Il perché è in PUBBLICAZIONE.md, «Testi descrittivi delle schede».
+let nTesti = 0;
+function testoLungo(testo, classe = '') {
+  const id = `testo-${++nTesti}`;
+  return `<div class="testo-lungo chiuso ${classe}" id="${id}">${esc(testo)}</div><button type="button" class="btn leggi-tutto" data-azione="apri-testo" data-testo="${id}" aria-expanded="false" aria-controls="${id}">Leggi tutto</button>`;
+}
+function htmlTesti(x, f) {
+  const anno = f && f.anno ? ` ${esc(String(f.anno).replace(/^(\d{4})\/\d{2}(\d{2})$/, '$1/$2'))}` : '';
+  const dove = f && f.url ? `<a href="${esc(f.url)}" target="_blank" rel="noopener">${x.es ? 'Continua a leggere nel catalogo dell’ateneo' : 'Vedi la scheda nel catalogo dell’ateneo'}</a>` : '';
+  const fonte = `<p class="fonte-testo">${x.es ? `Qui c’è solo l’inizio del testo che l’ateneo ha scritto nella scheda ufficiale del corso${anno}.` : `Testo dell’ateneo, dalla scheda ufficiale del corso${anno}, riportato così com’è.`} ${dove}</p>`;
+  return `${x.ob ? `<section class="sezione"><h2>Cosa si studia</h2>${testoLungo(x.ob)}${fonte}</section>` : ''}
+    ${x.rq ? `<section class="sezione"><h2>Come si entra</h2>${testoLungo(x.rq)}${fonte}</section>` : ''}
+    ${x.sb ? `<section class="sezione"><h2>Dopo la laurea</h2><div class="profili">${x.sb.map(([prof, funz, comp, sbo]) => { const titolo = titoloCorso((prof || '').split('\n')[0]); return `<div class="profilo"><h3>${esc(titolo.length > 160 ? titolo.slice(0, 160).replace(/\s+\S*$/, '') + '…' : titolo)}</h3>${sbo || funz ? testoLungo(sbo || funz, 'in-profilo') : ''}</div>`; }).join('')}</div>
+      ${x.pr ? `<h3 style="margin-top:20px;margin-bottom:10px">Professioni (classificazione ISTAT)</h3><div class="mestieri">${x.pr.map(p => `<span class="etichetta">${esc(p)}</span>`).join('')}</div>` : ''}${fonte}</section>` : ''}`;
+}
+// «Leggi tutto» solo dove il testo è davvero più lungo del riquadro chiuso
+function sistemaTestiLunghi(dentro) {
+  dentro.querySelectorAll('.testo-lungo.chiuso').forEach(t => {
+    if (t.scrollHeight <= t.clientHeight + 4) { t.classList.remove('chiuso'); const b = dentro.querySelector(`[data-testo="${t.id}"]`); if (b) b.remove(); }
+  });
 }
 
 /* ---------------- dopo la triennale: le magistrali più affini ---------------- */
@@ -1165,7 +1189,7 @@ function vistaFonti() {
       <li><b>Elenco dei corsi</b> (${fmt(attivi.length)} corsi per l’anno accademico 2026/27, con classe, tipo, accesso e lingua): Universitaly, il portale del Ministero dell’Università e della Ricerca.</li>
       <li><b>Area di studio e sede</b>: open data del Ministero dell’Università (USTAT), elenco dei corsi 2025/26.</li>
       <li><b>Piani degli esami</b> (${fmt(conPiano.length)} corsi): cataloghi dei corsi e siti ufficiali degli atenei. Ogni piano dice da quale fonte viene e di quale anno è, con il collegamento per controllarlo.</li>
-      <li><b>Obiettivi, requisiti d’accesso e sbocchi</b>: le schede pubblicate dagli atenei, riportate senza modifiche.</li>
+      <li><b>Cosa si studia, come si entra, cosa si fa dopo</b>: i testi che ogni ateneo scrive nella scheda ufficiale del corso, presi dal suo catalogo. Per gli atenei statali li riportiamo per intero e così come sono; per quelli non statali solo l’inizio, con il collegamento al resto. Sotto ogni testo c’è la fonte.</li>
       <li><b>Iscritti e laureati di ogni corso</b>: open data del Ministero dell’Università (<a href="https://dati-ustat.mur.gov.it/" target="_blank" rel="noopener">USTAT</a>, licenza IODL 2.0): iscritti per corso dal 2016/17 al 2025/26 (l’ultimo anno è provvisorio) e laureati del 2025. Mancano le università telematiche e i gruppi con meno di 6 persone.</li>
       <li><b>Com’è andata ai laureati</b> (regolarità, voti, soddisfazione, lavoro e stipendio a uno, tre e cinque anni): <a href="https://www.almalaurea.it/" target="_blank" rel="noopener">AlmaLaurea</a>, indagine 2025 sul profilo e sulla condizione occupazionale dei laureati, schede pubbliche dei singoli corsi e delle classi di laurea. Ci sono solo gli atenei che aderiscono ad AlmaLaurea: non, per esempio, Bocconi, Politecnico di Milano, Cattolica, Luiss e quasi tutte le telematiche.</li>
       <li><b>Comuni e distanze</b>: GeoNames (licenza CC BY 4.0). Le distanze sono in linea d’aria.</li>
@@ -1310,7 +1334,7 @@ document.addEventListener('click', ev => {
     else if (a === 'mappa') { S.mappa = !S.mappa; disegna(false); }
     else if (a === 'tema') { const t = temaScuro() ? 'light' : 'dark'; document.documentElement.dataset.theme = t; salva('tema', t); aggiornaTema(); }
     else if (a === 'vai-anno') { const el = document.getElementById('anno-' + b.dataset.anno); if (el) el.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); }
-    else if (a === 'apri-testo') { const t = document.getElementById(b.dataset.testo); t.classList.remove('chiuso'); b.remove(); }
+    else if (a === 'apri-testo') { const t = document.getElementById(b.dataset.testo); t.classList.remove('chiuso'); t.tabIndex = -1; b.remove(); t.focus({ preventScroll: true }); }
     else if (a === 'confronto') {
       const i = +b.dataset.i;
       S.confronto = S.confronto.includes(i) ? S.confronto.filter(x => x !== i) : [...S.confronto, i].slice(-3);

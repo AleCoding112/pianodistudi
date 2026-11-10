@@ -328,6 +328,11 @@ table.trasf td { vertical-align: top; }
 .nota.avviso { color: var(--attenzione); background: var(--attenzione-fondo); padding: 8px 12px; border-radius: var(--r-piccolo); margin-top: 10px; }
 .testo-lungo { max-width: 68ch; white-space: pre-line; color: var(--inchiostro); }
 .testo-lungo.chiuso { max-height: 9.5em; overflow: hidden; mask-image: linear-gradient(#000 60%, transparent); -webkit-mask-image: linear-gradient(#000 60%, transparent); }
+.leggi-tutto { margin-top: 10px; }
+.testo-lungo:focus { outline: none; }
+.testo-lungo.in-profilo { color: var(--tenue); font-size: .92rem; max-width: none; }
+.profilo .leggi-tutto { font-size: .85rem; padding: 6px 12px; }
+.fonte-testo { margin-top: 12px; color: var(--tenue); font-size: .85rem; max-width: 68ch; }
 .profili { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
 .profilo { padding: 16px 18px; border: 1px solid var(--linea); background: var(--foglio); border-radius: var(--r); }
 .profilo h3 { margin-bottom: 6px; }
