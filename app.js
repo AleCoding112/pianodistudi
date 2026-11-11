@@ -777,7 +777,7 @@ function htmlAnno(a) {
         : `L’ateneo non dice quanti crediti scegliere qui, ma per arrivare ai crediti del titolo ne mancano ${fmt(b.stima)}: probabilmente sono quelli di questo gruppo. Il numero esatto è nel regolamento del corso.`}</p>`
         : !b.c && !b.m && !b.x && !b.k ? '<p class="nota">Qui l’ateneo non indica quanti crediti scegliere: controlla il regolamento del corso.</p>' : ''}
       ${(b.n || []).map(n => `<p class="nota">${esc(n)}</p>`).join('')}
-      ${b.esami.length ? opzioniGruppo(b.esami) : '<p class="nota">Le opzioni non sono elencate: di solito si sceglie tra tutti gli esami dell’ateneo.</p>'}
+      ${b.esami.length ? opzioniGruppo(b.esami) : `<p class="nota">${!NON_LIBERA_RX.test(b.e || '') && !(b.n || []).some(n => /elenc|regol|guida/i.test(n)) ? 'Le opzioni non sono elencate: di solito si sceglie tra tutti gli esami dell’ateneo.' : 'Le opzioni non sono elencate qui: tra quali esami scegliere lo dice la fonte del piano.'}</p>`}
     </div>`).join('')}
   </div>`;
 }
@@ -831,6 +831,10 @@ function testoLungo(testo, classe = '') {
   const id = `testo-${++nTesti}`;
   return `<div class="testo-lungo chiuso ${classe}" id="${id}">${esc(testo)}</div><button type="button" class="btn leggi-tutto" data-azione="apri-testo" data-testo="${id}" aria-expanded="false" aria-controls="${id}">Leggi tutto</button>`;
 }
+// un gruppo senza opzioni elencate: «di solito si sceglie tra tutti gli esami dell'ateneo» solo se nulla dice il contrario.
+// Non lo si dice per gruppi di affini, caratterizzanti, competenze, lingue, altre attività, né quando le note rimandano a
+// elenchi o regole (Bocconi, «4 elective courses»: elenchi chiusi nella Guida; verifica indipendente dell'11/11/2026)
+const NON_LIBERA_RX = /affin|caratterizz|\bADO\b|competenz|linguistic|altre attivit|seminar|laborator|tirocin/i;
 function htmlTesti(x, f) {
   const anno = f && f.anno ? ` ${esc(String(f.anno).replace(/^(\d{4})\/\d{2}(\d{2})$/, '$1/$2'))}` : '';
   const dove = f && f.url ? `<a href="${esc(f.url)}" target="_blank" rel="noopener">${x.es ? 'Continua a leggere nel catalogo dell’ateneo' : 'Vedi la scheda nel catalogo dell’ateneo'}</a>` : '';
