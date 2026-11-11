@@ -2,8 +2,8 @@
 /* ---------------- quiz di orientamento ----------------
    Chi lo fa sceglie tra situazioni concrete (la più e la meno attraente di quattro), dice che lavoro immagina e le sue
    condizioni pratiche, poi assaggia «alla cieca» il primo anno vero di sei lauree vicine al suo profilo. Il profilo è un
-   punteggio da -1 a +1 su 24 ambiti di studio; ogni classe di laurea ha la quota dei suoi crediti obbligatori in ciascun
-   ambito (dati/orientamento.json, da raccolta/orientamento.py). L'affinità di una laurea è la media dei gusti pesata sui
+   punteggio da -1 a +1 su 28 ambiti di studio (24 materie, più i quattro delle professioni sanitarie); ogni classe di laurea
+   ha la quota dei suoi crediti obbligatori in ciascun ambito (dati/orientamento.json, da raccolta/orientamento.py). L'affinità di una laurea è la media dei gusti pesata sui
    suoi crediti. Usa le utilità di app.js, che va caricato prima. */
 
 const AMBITI_NOMI = {
@@ -14,6 +14,9 @@ const AMBITI_NOMI = {
   edu: 'educazione e insegnamento', eco: 'economia', eaz: 'aziende, management e finanza', giu: 'diritto',
   pol: 'società, politica e comunicazione', lin: 'lingue e culture straniere', let: 'letteratura e lingua italiana e classica',
   sto: 'storia, archeologia e beni culturali', fil: 'filosofia',
+  // i quattro ambiti delle professioni sanitarie: i loro esami professionalizzanti e il tirocinio (raccolta/orientamento.py)
+  ass: 'assistenza infermieristica e ostetrica', ria: 'riabilitazione', tec: 'tecniche sanitarie (esami, immagini, apparecchi)',
+  pre: 'prevenzione ed educazione alla salute',
 };
 // gli stessi ambiti con un nome corto, per le frasi: quelli lunghi hanno virgole e «e» dentro, e in un elenco si confondono
 const AMBITI_BREVI = {
@@ -21,19 +24,28 @@ const AMBITI_BREVI = {
   civ: 'architettura', des: 'design', chi: 'chimica', bio: 'biologia', ter: 'scienze della Terra', agr: 'agraria',
   med: 'medicina', mot: 'sport', psi: 'psicologia', edu: 'educazione', eco: 'economia', eaz: 'gestione aziendale', giu: 'diritto',
   pol: 'scienze sociali', lin: 'lingue straniere', let: 'letteratura', sto: 'storia', fil: 'filosofia',
+  ass: 'assistenza ai pazienti', ria: 'riabilitazione', tec: 'tecniche sanitarie', pre: 'prevenzione',
 };
+// Le professioni sanitarie (10/11/2026). I loro esami professionalizzanti non sono «medicina»: sono quattro ambiti a
+// parte, così chi non vuole fare il medico ma vuole assistere, riabilitare, fare esami o prevenire le trova. Si chiedono
+// in una situazione sola (l'ultima), quindi ogni ambito compare una volta invece di due: non stanno nelle otto famiglie
+// (la media di quattro attività fra cui si sceglie la più e la meno attraente non direbbe niente) e non entrano nella
+// misura di quanto è netto il profilo. quiz-magistrale.js usa FAMIGLIE per i suoi pulsanti: per questo restano com'erano
+const AMBITI_SANITARI = ['ass', 'ria', 'tec', 'pre'];
 // otto famiglie per il titolo del profilo e il grafico (24 ambiti sono troppi da leggere a colpo d'occhio)
 const FAMIGLIE = [
   { k: 'numeri', nome: 'Numeri e logica', ambiti: ['mat', 'sta', 'fis'] },
   { k: 'tecno', nome: 'Tecnologia e ingegneria', ambiti: ['inf', 'ele', 'ind'] },
   { k: 'progetto', nome: 'Progettare spazi e oggetti', ambiti: ['civ', 'des'] },
   { k: 'natura', nome: 'Natura e scienze della vita', ambiti: ['chi', 'bio', 'ter', 'agr'] },
-  { k: 'salute', nome: 'Salute e corpo', ambiti: ['med', 'mot'] },
+  // anche: ambiti che non entrano nella media della famiglia ma si nominano nella sua riga quando ti attirano
+  { k: 'salute', nome: 'Salute e corpo', ambiti: ['med', 'mot'], anche: AMBITI_SANITARI },
   { k: 'persone', nome: 'Mente ed educazione', ambiti: ['psi', 'edu'] },
   { k: 'societa', nome: 'Economia, diritto e società', ambiti: ['eco', 'eaz', 'giu', 'pol'] },
   { k: 'culture', nome: 'Lingue, testi e storia', ambiti: ['lin', 'let', 'sto', 'fil'] },
 ];
-// dodici situazioni da quattro attività; ogni ambito compare due volte. Sei situazioni mettono a confronto due coppie di
+// tredici situazioni da quattro attività. Nelle prime dodici ogni ambito compare due volte; la tredicesima è delle
+// professioni sanitarie (vedi sotto). Sei situazioni mettono a confronto due coppie di
 // ambiti vicini (architettura e design, informatica e statistica, economia e gestione aziendale, biologia e chimica,
 // matematica e fisica, psicologia ed educazione, lettere e lingue, elettronica e ingegneria industriale, diritto e politica,
 // storia e filosofia, medicina e sport, scienze della Terra e agraria): senza, due interessi vicini arriverebbero tutti e
@@ -51,7 +63,7 @@ const SITUAZIONI = [
     ['Capire se le differenze fra le classi nelle risposte al questionario sono reali o solo un caso', { sta: 1 }],
     ['Scrivere il testo finale, rileggendolo finché ogni frase suona giusta', { let: 1 }],
     ['Tradurre il progetto per una scuola in Germania, senza perdere il tono', { lin: 1 }]] },
-  { d: 'Quale di questi enigmi ti terrebbe sveglio la notte?', o: [
+  { d: 'Quale di questi enigmi ti farebbe perdere il sonno?', o: [
     ['Perché il tempo scorre più lento vicino a un buco nero?', { fis: 1 }],
     ['Come fa un computer a trovare in un attimo la strada più breve fra milioni di possibili?', { inf: 1 }],
     ['Perché assomigliamo ai nostri genitori, ma non del tutto?', { bio: 1 }],
@@ -96,14 +108,26 @@ const SITUAZIONI = [
     ['In una società sportiva, ad allenare ragazzi con disabilità', { mot: 1 }],
     ['In una scuola di periferia, ad aiutare i ragazzi con i compiti', { edu: 1 }],
     ['In un archivio storico, a riordinare documenti e preparare le visite', { sto: 1 }]] },
-  { d: 'Ultima: un mese in montagna con un’associazione. Di cosa ti occupi?', o: [
+  { d: 'Un mese in montagna con un’associazione. Di cosa ti occupi?', o: [
     ['Del presidio di primo soccorso: capire cos’ha chi sta male e cosa fare', { med: 1 }],
     ['Della preparazione fisica del gruppo prima delle escursioni', { mot: 1 }],
     ['Dei rilievi su una frana: capire perché il versante si muove', { ter: 1 }],
     ['Delle stalle e dei pascoli: come stanno gli animali e che cosa mangiano', { agr: 1 }]] },
+  // le professioni sanitarie: assistenza, riabilitazione, tecniche sanitarie, prevenzione. Il medico non c'è apposta (ha
+  // già le sue due attività): qui si distingue chi vuole lavorare nella sanità senza fare il medico. I pesi piccoli sugli
+  // ambiti di prima dicono a chi somiglia l'attività (la riabilitazione al movimento e alla psicologia, le tecniche alla
+  // fisica e alla biologia…). Deve restare l'ultima: i link ai profili fatti con dodici situazioni la lasciano senza risposta
+  { d: 'Ultima: passi un mese accanto a chi lavora per la salute degli altri, ma non fa il medico. Chi segui?', o: [
+    ['Chi assiste i malati in reparto e le donne durante il parto, e si accorge se qualcosa non va', { ass: 1, med: .2, psi: .2 }],
+    ['Chi aiuta un bambino che fatica a parlare, o un adulto a tornare a camminare dopo un incidente', { ria: 1, mot: .3, psi: .2, edu: .2 }],
+    ['Chi fa radiografie, risonanze e analisi di laboratorio, con macchine e strumenti di precisione', { tec: 1, fis: .2, bio: .2, chi: .2, ele: .2 }],
+    ['Chi lavora perché le persone non si ammalino: controlla cibo, acqua e luoghi di lavoro, insegna a mangiare bene e a curare i denti', { pre: 1, agr: .2, ter: .2, edu: .2, giu: .1 }]] },
 ];
+const SITUAZIONI_V3 = 12;  // quante erano prima della situazione delle professioni sanitarie (i link «3…»)
 const LAVORO = { d: 'Tra dieci anni, una giornata di lavoro riuscita è una giornata in cui…', o: [
-  ['…ho aiutato qualcuno a stare meglio', { med: .6, psi: .5, edu: .3, mot: .3 }],
+  // per i quattro ambiti delle professioni sanitarie questa risposta è la conferma dell'attività scelta nell'ultima
+  // situazione: conta solo per quell'ambito (vedi gustiPerAmbito)
+  ['…ho aiutato qualcuno a stare meglio', { med: .6, psi: .5, edu: .3, mot: .3, ass: 1, ria: 1, tec: 1, pre: 1 }],
   ['…ho risolto un problema difficile con i numeri o con il codice', { inf: .6, mat: .5, sta: .5, fis: .3 }],
   ['…ho progettato o costruito qualcosa che prima non c’era', { ind: .5, civ: .5, ele: .5, des: .5 }],
   ['…ho preso decisioni, trattato, convinto qualcuno', { eaz: .6, giu: .5, eco: .4, pol: .4 }],
@@ -164,9 +188,18 @@ const NOMI_CLASSI = {
 const nomePercorso = cl => cl.nome;
 // il modo di studiare di un percorso: quello della sua classe, tranne i percorsi che dentro la classe vanno altrove
 const COME_PERCORSI = [[/gestional|management engineering/, [1, 0]], [/biomedic|medica\b|salute/, [1, 0]]];
-const comeDi = cl => (COME_PERCORSI.find(([rx]) => rx.test(norma(cl.nome))) || [, COME[cl.classe] || [0, 0]])[1];
-const PARTI = [['Cosa ti attira', 0, 12], ['Il lavoro e il modo di studiare', 12, 14], ['Le tue condizioni', 14, 15], ['Alla cieca', 15, 17]];
-const PASSI = 17, KM_VICINO = 60;
+// Le professioni sanitarie una per una (la classe non basta: nella stessa classe ci sono il tecnico di laboratorio e
+// l'igienista dentale): chi lavora soprattutto con macchine, campioni e apparecchi, chi a metà, chi sempre con le persone.
+// Non vale per i profili fatti prima che il quiz chiedesse delle professioni sanitarie (cl.v3), che si calcolano come allora
+const COME_SANITARIE = [
+  [/radiologia|laboratorio biomedico|tecniche ortopediche/, [1, -1]],
+  [/neurofisiopatologia|audiometric|audioprotesic|cardiocircolatoria|tecniche della prevenzione/, [1, 0]],
+  [/igiene dentale|dietistica|assistenza sanitaria|osteopatia/, [1, 1]]];
+const comeDi = cl => ((SANITARIE.has(cl.classe) && !cl.v3 && COME_SANITARIE.find(([rx]) => rx.test(norma(cl.nome)))) || COME_PERCORSI.find(([rx]) => rx.test(norma(cl.nome))) || [, COME[cl.classe] || [0, 0]])[1];
+// i passi del quiz: le situazioni, il lavoro, il modo di studiare, le condizioni, due assaggi
+const P_LAVORO = SITUAZIONI.length, P_MODO = P_LAVORO + 1, P_CONDIZIONI = P_LAVORO + 2, P_ASSAGGI = P_LAVORO + 3, PASSI = P_ASSAGGI + 2;
+const PARTI = [['Cosa ti attira', 0, P_LAVORO], ['Il lavoro e il modo di studiare', P_LAVORO, P_CONDIZIONI], ['Le tue condizioni', P_CONDIZIONI, P_ASSAGGI], ['Alla cieca', P_ASSAGGI, PASSI]];
+const KM_VICINO = 60;
 const COND_BASE = { dove: 2, test: 1, inglese: 1, online: 0, ciclo: 1 };
 const ICONA_BUSSOLA = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="m16.2 7.8-1.8 5.4a2 2 0 0 1-1.3 1.3l-5.3 1.7 1.8-5.4a2 2 0 0 1 1.3-1.3z"/></svg>';
 
@@ -175,7 +208,7 @@ let caricamentoOrientamento = null;
 function caricaOrientamento() {
   if (!caricamentoOrientamento) caricamentoOrientamento = json('dati/orientamento.json').then(o => {
     o.percorsoDi = {};
-    o.percorsi.forEach((cl, k) => { cl.k = k; cl.quote = Object.fromEntries(o.ambiti.map((a, j) => [a, cl.profilo[j]])); cl.corsi.forEach(i => { o.percorsoDi[i] = k; }); });
+    o.percorsi.forEach((cl, k) => { cl.k = k; cl.quote = Object.fromEntries(o.ambiti.map((a, j) => [a, cl.profilo[j]])); if (SANITARIE.has(cl.classe)) cl.quoteMed = quotePiegate(cl.quote); cl.corsi.forEach(i => { o.percorsoDi[i] = k; }); });
     S.orientamento = o;
   }).catch(e => { caricamentoOrientamento = null; throw e; });  // fallita, si potrà riprovare
   return caricamentoOrientamento;
@@ -201,31 +234,47 @@ function vicino(c, cond) {
 }
 
 /* ---------- risposte: stato, salvataggio, codice per il link al risultato ---------- */
-// le risposte salvate di una versione precedente del quiz (domande diverse) non valgono più
+// le risposte salvate di una versione precedente del quiz (domande diverse) non valgono più. La 4 ha una situazione in
+// più della 3: un quiz lasciato a metà con la 3 si ricomincia (il profilo già fatto resta leggibile, vedi decodifica)
 let Q = leggi('quiz', null);
-if (Q && Q.versione !== 3) Q = null;
+if (Q && Q.versione !== 4) Q = null;
 const NESSUNA = 4;  // al posto dell'attività «di più»: nessuna delle quattro attira davvero
 function mescola(n) { const a = [...Array(n).keys()]; for (let i = n - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 function nuovoQuiz() {
-  Q = { versione: 3, passo: 0, ordine: SITUAZIONI.map(() => mescola(4)), scelte: SITUAZIONI.map(() => [null, null]), lavoro: null, strada: null, teoria: null, persone: null,
+  Q = { versione: 4, passo: 0, ordine: SITUAZIONI.map(() => mescola(4)), scelte: SITUAZIONI.map(() => [null, null]), lavoro: null, strada: null, teoria: null, persone: null,
     ordineLavoro: mescola(LAVORO.o.length), cond: { ...COND_BASE }, assaggi: [null, null], ordineAssaggi: [mescola(3), mescola(3)] };
   salva('quiz', Q);
 }
-// un carattere per risposta: versione, 12 coppie (più, meno; più = 4 se nessuna attira), lavoro, strada, teoria, persone,
+// un carattere per risposta: versione, 13 coppie (più, meno; più = 4 se nessuna attira), lavoro, strada, teoria, persone,
 // 5 condizioni, 2 assaggi (3 = nessuno, 9 = non mostrato). Le versioni 1 e 2 avevano altre situazioni: i loro link non si
-// possono più leggere, e il profilo lo dice (vecchioProfilo)
+// possono più leggere, e il profilo lo dice (vecchioProfilo). La versione 3 aveva le prime dodici situazioni di adesso, senza
+// quella delle professioni sanitarie: i suoi link si leggono ancora, con la tredicesima senza risposta ([null, null]), e
+// il profilo si calcola come allora (vedi senzaSanitarie)
 function codifica(q) {
-  const c = q.cond;
-  return '3' + q.scelte.map(([b, w]) => `${b}${w}`).join('') + (q.lavoro ?? 9) + (q.strada ?? 2) + (q.teoria ?? 1) + (q.persone ?? 1)
+  const c = q.cond, v3 = senzaSanitarie(q);
+  return (v3 ? '3' : '4') + (v3 ? q.scelte.slice(0, SITUAZIONI_V3) : q.scelte).map(([b, w]) => `${b}${w}`).join('') + (q.lavoro ?? 9) + (q.strada ?? 2) + (q.teoria ?? 1) + (q.persone ?? 1)
     + c.dove + c.test + c.inglese + c.online + c.ciclo + q.assaggi.map(x => x ?? 9).join('');
 }
 function decodifica(t) {
-  if (!/^3\d{35}$/.test(t || '')) return null;
-  const d = t.slice(1).split('').map(Number), scelte = [];
-  for (let k = 0; k < 12; k++) { const [b, w] = [d[2 * k], d[2 * k + 1]]; if (b > NESSUNA || w > 3 || b === w) return null; scelte.push([b, w]); }
-  const lavoro = d[24] === 9 ? null : d[24], [dove, test, inglese, online, ciclo] = d.slice(28, 33);
-  if ([d[25], d[26], d[27]].some(x => x > 2)) return null;
-  return { scelte, lavoro, strada: d[25], teoria: d[26], persone: d[27], cond: { dove, test, inglese, online, ciclo }, assaggi: d.slice(33, 35).map(x => x === 9 ? null : x) };
+  const v3 = /^3\d{35}$/.test(t || '');
+  if (!v3 && !/^4\d{37}$/.test(t || '')) return null;
+  const n = v3 ? SITUAZIONI_V3 : SITUAZIONI.length, d = t.slice(1).split('').map(Number), scelte = [];
+  for (let k = 0; k < n; k++) { const [b, w] = [d[2 * k], d[2 * k + 1]]; if (b > NESSUNA || w > 3 || b === w) return null; scelte.push([b, w]); }
+  while (scelte.length < SITUAZIONI.length) scelte.push([null, null]);
+  const lavoro = d[2 * n] === 9 ? null : d[2 * n], [dove, test, inglese, online, ciclo] = d.slice(2 * n + 4, 2 * n + 9);
+  if (lavoro != null && lavoro >= LAVORO.o.length) return null;
+  if ([d[2 * n + 1], d[2 * n + 2], d[2 * n + 3]].some(x => x > 2)) return null;
+  return { scelte, lavoro, strada: d[2 * n + 1], teoria: d[2 * n + 2], persone: d[2 * n + 3], cond: { dove, test, inglese, online, ciclo }, assaggi: d.slice(2 * n + 9, 2 * n + 11).map(x => x === 9 ? null : x) };
+}
+// una situazione senza risposta (solo l'ultima, nei profili fatti con la versione 3) non conta
+const saltata = sc => !sc || (sc[0] == null && sc[1] == null);
+// il profilo è di prima che il quiz chiedesse delle professioni sanitarie: si calcola come allora, con i loro esami
+// professionalizzanti contati come medicina (quotePiegate), così un link già condiviso mostra lo stesso risultato
+const senzaSanitarie = r => saltata(r.scelte[SITUAZIONI_V3]);
+function quotePiegate(q) {
+  const out = { ...q, med: q.med || 0 };
+  for (const a of AMBITI_SANITARI) { out.med += q[a] || 0; delete out[a]; }
+  return out;
 }
 
 /* ---------- calcolo ---------- */
@@ -234,19 +283,61 @@ function decodifica(t) {
 function gustiPerAmbito(r, senza = -1) {
   const A = S.orientamento.ambiti, grezzo = Object.fromEntries(A.map(a => [a, 0])), peso = { ...grezzo };
   SITUAZIONI.forEach((sit, k) => {
-    if (k === senza) return;
+    if (k === senza || saltata(r.scelte[k])) return;
     const [b, w] = r.scelte[k];
-    sit.o.forEach(([, pesi], i) => { for (const [a, p] of Object.entries(pesi)) { peso[a] += p; if (i === b) grezzo[a] += p; if (i === w) grezzo[a] -= p; } });
+    // i pesi piccoli (a chi somiglia un'attività, solo nella situazione delle professioni sanitarie) contano solo se l'hai
+    // scelta come «di più»: non sceglierla, o metterla per ultima, non dice niente sugli ambiti a cui somiglia. Provato:
+    // contati sempre, chi non la sceglieva perdeva un po' del suo ambito principale (il geologo, il fisico, l'avvocato
+    // simulati finivano fra le prime 3 dai 6 ai 10 punti in meno)
+    sit.o.forEach(([, pesi], i) => { for (const [a, p] of Object.entries(pesi)) { if (p < 1 && i !== b) continue; peso[a] += p; if (i === b) grezzo[a] += p; if (i === w) grezzo[a] -= p; } });
   });
-  // il lavoro immaginato è una scelta sola: alza gli ambiti dell'opzione scelta e pesa un po' meno gli altri
-  if (r.lavoro != null) LAVORO.o.forEach(([, pesi], i) => { for (const [a, p] of Object.entries(pesi)) { peso[a] += p; if (i === r.lavoro) grezzo[a] += p; } });
-  return Object.fromEntries(A.map(a => [a, peso[a] ? Math.max(-1, Math.min(1, grezzo[a] / peso[a])) : 0]));
+  // il lavoro immaginato è una scelta sola: alza gli ambiti dell'opzione scelta e pesa un po' meno gli altri. Per gli ambiti
+  // delle professioni sanitarie conta solo come conferma: per quello dell'attività scelta («di più») nella loro situazione
+  const sc = senza === SITUAZIONI_V3 ? null : r.scelte[SITUAZIONI_V3], opz = sc && sc[0] != null && sc[0] !== NESSUNA ? SITUAZIONI[SITUAZIONI_V3].o[sc[0]][1] : null;
+  const confermabile = opz && Object.keys(opz).find(a => opz[a] === 1);
+  if (r.lavoro != null) LAVORO.o.forEach(([, pesi], i) => { for (const [a, p] of Object.entries(pesi)) { if (PESO_MINIMO[a] && a !== confermabile) continue; peso[a] += p; if (i === r.lavoro) grezzo[a] += p; } });
+  if (confermabile && CONFERMA_STRADA && r.strada === 0) grezzo[confermabile] += CONFERMA_STRADA;
+  return Object.fromEntries(A.map(a => { const p = Math.max(peso[a], PESO_MINIMO[a] || 0); return [a, p ? Math.max(-1, Math.min(1, grezzo[a] / p)) : 0]; }));
 }
+// Gli ambiti delle professioni sanitarie compaiono in una situazione sola, dove gareggiano solo fra loro: chiunque non dica
+// «nessuna mi attira» ne sceglie uno, anche chi risponde a caso o chi della sanità non vuole sapere. Una scelta sola quindi
+// vale poco, e sale solo se altre due risposte la confermano:
+//   solo l'attività scelta nella situazione                                  1 / 3           = 0,33 («ti attira», appena)
+//   + «una laurea che porta dritta a un mestiere preciso» (CONFERMA_STRADA)   1,75 / 3        = 0,58
+//   + «ho aiutato qualcuno a stare meglio» nel lavoro immaginato (peso 1)     2 / 3           = 0,67
+//   tutte e due le conferme                                                  2,75 / 3        = 0,92
+// L'attività messa per ultima vale -0,33. Sono lauree abilitanti: chi le vuole di solito vuole proprio quel mestiere, e
+// lavorare perché qualcuno stia meglio. Le conferme valgono solo per l'ambito scelto nella situazione: da sole non alzano
+// niente. Valori tarati con verifica/quiz-studenti.mjs (studenti di sviluppo e risposte a caso)
+const PESO_MINIMO = Object.fromEntries(AMBITI_SANITARI.map(a => [a, 3]));
+const CONFERMA_STRADA = .75;
+// Le professioni sanitarie sono 22 percorsi in una scheda sola, con quattro ambiti tutti loro e due strade per arrivarci
+// (vedi affinita): a parità di trattamento, con risposte date a caso la scheda uscirebbe prima molto più spesso di
+// qualunque altra laurea (dal 12 al 20% nelle prove con la sola strada nuova senza passo indietro, contro il 5% al massimo
+// delle altre). Per questo ogni strada parte un passo indietro. Quello della strada nuova è più lungo: lì chiunque sceglie
+// un'attività, e uno studente a cui la sanità interessa poco (lo «sport» simulato) si vedrebbe proporre Fisioterapia prima
+// di Scienze motorie. Quello della strada della medicina è corto: serve solo a tenere la scheda sotto il 5% con risposte a
+// caso ora che le strade sono due (senza, 5,6-7,6% nelle prove). Tarati con verifica/quiz-studenti.mjs: sono un
+// compromesso fra chi vuole una professione sanitaria e gli studenti di prima, vedi RAPPORTO-quiz.md, «Secondo giro»
+const PASSO_INDIETRO = .16, PASSO_MEDICINA = .02;
 const SOGLIA = .3;  // da qui in su un ambito «ti attira», da -SOGLIA in giù «l'hai scartato»
 // i pesi sono tarati con gli studenti simulati di verifica/quiz-studenti.mjs: chi li cambia rilanci quella verifica
 const PESO_FORMA = .7, PESO_SCARTO = .4, PESO_COME = .05, PESO_STRADA = .04, MARGINE_MINIMO = .015, FORMA_ESTREMI = [.4, 1];
 const direzione = v => v === 0 ? -1 : v === 2 ? 1 : 0;  // le risposte sul modo: 0 e 2 sono i due estremi, 1 la via di mezzo
+// Le professioni sanitarie si leggono in due modi, e vale il più favorevole (secondo giro, 10/11/2026):
+// - la lettura nuova: gli esami professionalizzanti e il tirocinio sono assistenza, riabilitazione, tecniche sanitarie o
+//   prevenzione. È la strada di chi non vuole fare il medico e sceglie una di quelle attività nell'ultima situazione;
+// - la lettura di prima: gli stessi crediti contati come medicina (quotePiegate). È la strada di chi ci arriva perché ama la
+//   medicina e le persone e fa l'infermiere: con la sola lettura nuova, chi non sceglieva l'attività dell'infermiere non
+//   vedeva più la scheda (lo studente simulato «infermiere»: dal 99% al 72% tra le prime 3).
+// Ogni strada ha il suo passo indietro (PASSO_INDIETRO, PASSO_MEDICINA). viaMedicina dice quale ha vinto, per le frasi
 function affinita(cl, s, r, forma = PESO_FORMA) {
+  if (!SANITARIE.has(cl.classe) || cl.v3) return affinitaQuote(cl, cl.quote, s, r, forma);
+  return Math.max(affinitaQuote(cl, cl.quote, s, r, forma) - PASSO_INDIETRO, affinitaQuote(cl, cl.quoteMed, s, r, forma) - PASSO_MEDICINA);
+}
+const viaMedicina = (cl, s, r) => SANITARIE.has(cl.classe) && !cl.v3
+  && affinitaQuote(cl, cl.quoteMed, s, r, PESO_FORMA) - PASSO_MEDICINA > affinitaQuote(cl, cl.quote, s, r, PESO_FORMA) - PASSO_INDIETRO;
+function affinitaQuote(cl, quote, s, r, forma) {
   // due misure insieme. La forma: il coseno tra quello che ti attira e le quote dei crediti premia le lauree che coprono i
   // tuoi interessi nelle stesse proporzioni, anche quando sono miste (Comunicazione, Biotecnologie). La quantità: la parte
   // dei crediti in ambiti che ti attirano premia le lauree concentrate su quello che ti attira di più. Da sola, la quantità
@@ -255,7 +346,7 @@ function affinita(cl, s, r, forma = PESO_FORMA) {
   // Design). Poi tolgono punti i crediti negli ambiti scartati, e il modo di studiare e la strada spostano di poco
   let dot = 0, nq = 0, np = 0, quanti = 0, scarto = 0;
   for (const a in s) {
-    const q = cl.quote[a] || 0, p = Math.max(0, s[a]);
+    const q = quote[a] || 0, p = Math.max(0, s[a]);
     dot += q * p; nq += q * q; np += p * p; quanti += q * p;
     if (s[a] < 0) scarto -= q * s[a];
   }
@@ -285,7 +376,30 @@ function famiglia(cl) {
   const parola = norma(cl.nome).split(' ').find(w => w.length > 3 && !GENERICHE.has(w)) || norma(cl.nome);
   return `${cl.classe}|${cl.tipo}|${parola.slice(0, 6)}`;
 }
-function voci(classi) {
+// Dentro la scheda delle professioni sanitarie l'ordine non può venire solo dai piani: quelli di Fisioterapia, Logopedia e
+// Podologia sono fatti quasi degli stessi settori (riabilitazione, medicina, biologia), e il movimento nel piano di
+// Fisioterapia non ha crediti suoi. Per ogni professione diciamo a quali altri gusti è vicina (un giudizio nostro, come
+// COME: non un dato dei piani), e a parità di piano sale quella più vicina. Vale solo per l'ordine dentro la scheda: il
+// posto della scheda fra le lauree lo decidono i crediti, come per tutte
+const VICINE = [
+  [/fisioterapia/, { mot: 1 }], [/logopedia/, { lin: 1, psi: .5, edu: .5, let: .5 }], [/riabilitazione psichiatrica/, { psi: 1 }],
+  [/educazione professionale/, { edu: 1, psi: .5, pol: .5 }], [/psicomotricit/, { edu: 1, psi: .7, mot: .5 }],
+  [/terapia occupazionale/, { psi: .6, mot: .6 }], [/ortottica/, { fis: 1 }], [/podologia/, { mot: .5 }], [/osteopatia/, { mot: 1 }],
+  [/radiologia/, { fis: 1, ele: .5, inf: .5 }], [/laboratorio biomedico/, { bio: 1, chi: .8 }], [/neurofisiopatologia/, { ele: .6, psi: .4 }],
+  [/audiometric|audioprotesic/, { fis: .6, ele: .6 }], [/ortopediche/, { ind: 1, mot: .4 }], [/cardiocircolatoria/, { ele: .6, bio: .6 }],
+  [/dietistica/, { agr: 1, chi: .6, bio: .4 }], [/tecniche della prevenzione/, { ter: 1, chi: .6, giu: .6 }],
+  [/assistenza sanitaria/, { edu: 1, pol: .6 }],
+];
+const PESO_VICINE = .2;
+function vicinanza(cl, s) {
+  const pesi = (VICINE.find(([rx]) => rx.test(norma(cl.nome))) || [])[1];
+  if (!pesi) return 0;
+  let v = 0, tot = 0;
+  for (const a in pesi) { v += pesi[a] * Math.max(0, s[a] || 0); tot += pesi[a]; }
+  return PESO_VICINE * v / tot;
+}
+// s: i gusti, per ordinare le professioni dentro la scheda delle professioni sanitarie (senza, restano in ordine di affinità)
+function voci(classi, s = null) {
   const out = [], per = new Map();
   for (const x of classi) {
     const f = famiglia(x.cl);
@@ -294,7 +408,12 @@ function voci(classi) {
     per.set(f, v); out.push(v);
   }
   out.forEach(v => {
-    v.affinita = v.classi[0].affinita; v.campione = v.classi[0].cl.campione;
+    v.affinita = v.classi[0].affinita;
+    // l'ordine dentro la scheda usa sempre la lettura nuova (x.dentro), anche quando la scheda è salita per la strada della
+    // medicina: con quella lettura le professioni sono quasi tutte uguali (80% medicina), e chi ha scelto l'assistenza
+    // non troverebbe Infermieristica in testa
+    if (v.sanitarie && s) { const ordine = new Map(v.classi.map(x => [x, (x.dentro ?? x.affinita) + vicinanza(x.cl, s)])); v.classi.sort((a, b) => ordine.get(b) - ordine.get(a)); }
+    v.campione = v.classi[0].cl.campione;
     if (v.classi[0].varianti) {
       v.varianti = v.classi[0].varianti.map((_, k) => Math.max(...v.classi.map(x => x.varianti[k])));
       v.estremi = v.classi[0].estremi.map((_, k) => Math.max(...v.classi.map(x => x.estremi[k])));
@@ -320,7 +439,8 @@ function margini(lista) {
     testa = testa && v.pari; v.inTesta = testa;
   });
 }
-// ogni ambito è l'attività principale (peso 1) in due situazioni: dove, per dire quali scelte si confermano
+// ogni ambito è l'attività principale (peso 1) in due situazioni (una sola per quelli delle professioni sanitarie, che
+// quindi non si possono né confermare né contraddire): dove, per dire quali scelte si confermano
 const APPARIZIONI = {};
 SITUAZIONI.forEach((sit, k) => sit.o.forEach(([, pesi], i) => { for (const a in pesi) if (pesi[a] === 1) (APPARIZIONI[a] = APPARIZIONI[a] || []).push([k, i]); }));
 // quanto è netto il profilo: la distanza fra le due aree che ti attirano di più e le due che ti attirano di meno, messa a
@@ -333,37 +453,43 @@ const nettezza = s => { const f = FAMIGLIE.map(f => f.ambiti.reduce((t, a) => t 
 // (sennò chi è selettivo, e lo dice spesso, sembrerebbe rispondere a caso: il profilo diventa meno largo, non meno vero)
 const NETTEZZE_CASO = new Map();
 function nitidezza(r, s) {
-  const nessune = r.scelte.map(([b]) => b === NESSUNA), chiave = nessune.map(Number).join('') + (r.lavoro == null ? '-' : '');
+  // una situazione senza risposta (i profili della versione 3) resta senza risposta anche nel caso, e non consuma numeri
+  // a caso: il verdetto di quei profili è quello di prima
+  const nessune = r.scelte.map(([b]) => b === NESSUNA), saltate = r.scelte.map(saltata);
+  const chiave = nessune.map((x, k) => saltate[k] ? 2 : +x).join('') + (r.lavoro == null ? '-' : '');
   if (!NETTEZZE_CASO.has(chiave)) {
     // generatore con un seme fisso (mulberry32): le stesse risposte a caso a ogni visita, quindi lo stesso verdetto
     let seme = 20261028;
     const caso = n => { seme = (seme + 0x6D2B79F5) | 0; let x = Math.imul(seme ^ (seme >>> 15), 1 | seme); x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x; return Math.floor(((x ^ (x >>> 14)) >>> 0) / 4294967296 * n); };
     NETTEZZE_CASO.set(chiave, Array.from({ length: 1000 }, () => nettezza(gustiPerAmbito({
-      scelte: SITUAZIONI.map((_, k) => { const b = caso(4), w = (b + 1 + caso(3)) % 4; return [nessune[k] ? NESSUNA : b, w]; }),
+      scelte: SITUAZIONI.map((_, k) => { if (saltate[k]) return [null, null]; const b = caso(4), w = (b + 1 + caso(3)) % 4; return [nessune[k] ? NESSUNA : b, w]; }),
       lavoro: r.lavoro == null ? null : caso(LAVORO.o.length) }))).sort((x, y) => x - y));
   }
   const NC = NETTEZZE_CASO.get(chiave);
   const x = nettezza(s), sotto = NC.findIndex(v => v >= x), pct = (sotto < 0 ? NC.length : sotto) / NC.length;
   const voto = ([k, i]) => r.scelte[k][0] === i ? 1 : r.scelte[k][1] === i ? -1 : 0;
-  const coppie = Object.entries(APPARIZIONI).map(([a, [x1, y1]]) => [a, voto(x1), voto(y1)]);
+  const coppie = Object.entries(APPARIZIONI).filter(([, dove]) => dove.length === 2).map(([a, [x1, y1]]) => [a, voto(x1), voto(y1)]);
   return { pct, livello: pct >= .8 ? 'alta' : pct >= .5 ? 'media' : 'bassa',
     confermati: coppie.filter(([, x1, y1]) => x1 === y1 && x1 !== 0).map(([a, x1]) => [a, x1]),  // scelto, o scartato, tutte e due le volte
     contraddetti: coppie.filter(([, x1, y1]) => x1 * y1 === -1).map(([a]) => a) };             // scelto una volta e scartato l'altra
 }
 function calcola(r, opz = {}) {
-  const s = gustiPerAmbito(r), O = S.orientamento;
+  const s = gustiPerAmbito(r), O = S.orientamento, v3 = senzaSanitarie(r);
   const assaggiati = r.assaggi.some(x => x != null && x <= 2);
-  const varianti = opz.incertezza || assaggiati ? SITUAZIONI.map((_, k) => gustiPerAmbito(r, k)) : null;
-  const tutte = O.percorsi.map(cl => {
+  // le varianti: una per ogni situazione a cui hai risposto
+  const varianti = opz.incertezza || assaggiati ? SITUAZIONI.map((_, k) => k).filter(k => !saltata(r.scelte[k])).map(k => gustiPerAmbito(r, k)) : null;
+  // un profilo della versione 3 non ha risposte sulle professioni sanitarie: i loro percorsi contano come allora
+  const percorsi = v3 ? O.percorsi.map(cl => SANITARIE.has(cl.classe) ? { ...cl, quote: quotePiegate(cl.quote), v3: true } : cl) : O.percorsi;
+  const tutte = percorsi.map(cl => {
     const corsi = corsiDelPercorso(cl), adatti = corsi.filter(c => corsoAdatto(c, r.cond));
     let escluso = '';
     if (!r.cond.ciclo && cl.tipo === 'ciclo unico') escluso = 'è a ciclo unico (5 o 6 anni)';
     else if (corsi.length && !adatti.length) escluso = !r.cond.test && corsi.every(c => (c.accesso || '').startsWith('programmato')) ? 'tutti i corsi sono a numero programmato'
       : !r.cond.inglese && corsi.every(c => c.lingua === 'Inglese') ? 'tutti i corsi sono in inglese' : 'nessun corso rispetta le condizioni che hai scelto';
-    return { cl, corsi, adatti, escluso, affinita: affinita(cl, s, r), varianti: varianti && varianti.map(sv => affinita(cl, sv, r)),
+    return { cl, corsi, adatti, escluso, affinita: affinita(cl, s, r), dentro: SANITARIE.has(cl.classe) && !cl.v3 ? affinitaQuote(cl, cl.quote, s, r, PESO_FORMA) : undefined, varianti: varianti && varianti.map(sv => affinita(cl, sv, r)),
       estremi: varianti && [affinita(cl, s, r, FORMA_ESTREMI[0]), affinita(cl, s, r, FORMA_ESTREMI[1])] };
   }).sort((a, b) => b.affinita - a.affinita);
-  const base = voci(tutte.filter(x => !x.escluso && x.adatti.length));
+  const base = voci(tutte.filter(x => !x.escluso && x.adatti.length), v3 ? null : s);
   if (varianti && base.length) margini(base);
   // assaggi: il primo anno delle voci 1-3 e 4-6. Scegliere un primo anno guardando solo gli esami decide fra lauree alla
   // pari: quella scelta passa in testa se era alla pari con la prima, altrimenti guadagna il suo margine di incertezza e
@@ -383,13 +509,13 @@ function calcola(r, opz = {}) {
   const finale = base.slice().sort((a, b) => b.affinita - a.affinita);
   if (varianti && finale.length) margini(finale);
   const fam = FAMIGLIE.map(f => ({ ...f, v: f.ambiti.reduce((t, a) => t + s[a], 0) / f.ambiti.length })).sort((a, b) => b.v - a.v);
-  return { s, fam, tutte, voci: finale, giri, scelte, nitidezza: nitidezza(r, s) };
+  return { s, fam, tutte, voci: finale, giri, scelte, nitidezza: nitidezza(r, s), v3 };
 }
 function forma(fam, R) {
   // un profilo che non si distingue da risposte date a caso non ha una forma: il risultato lo dice invece di inventarla
   if (R && R.nitidezza.livello === 'bassa') return 'piatto';
   const v = fam.map(f => f.v);
-  if (v[0] < .2 || v[0] - v[7] < .35) return 'piatto';
+  if (v[0] < .2 || v[0] - v[v.length - 1] < .35) return 'piatto';
   if (v[0] - v[1] >= .25) return 'netto';
   // «ampio» solo se anche la terza area attira davvero e non è lontana dalla prima; altrimenti contano le prime due
   if (v[2] >= .35 && v[0] - v[2] < .3) return 'ampio';
@@ -401,11 +527,11 @@ function vistaQuiz() {
   if (!S.orientamento) return '<div class="colonna caricamento">Preparo il quiz…</div>';
   const p = Q ? Q.passo : -1;
   if (p < 0 || p == null || Q.fatto) return introQuiz();
-  if (p < 12) return schermataSituazione(p);
-  if (p === 12) return schermataScelta(LAVORO, 'lavoro', p);
-  if (p === 13) return schermataModo();
-  if (p === 14) return schermataCondizioni();
-  return schermataAssaggio(p - 15);
+  if (p < P_LAVORO) return schermataSituazione(p);
+  if (p === P_LAVORO) return schermataScelta(LAVORO, 'lavoro', p);
+  if (p === P_MODO) return schermataModo();
+  if (p === P_CONDIZIONI) return schermataCondizioni();
+  return schermataAssaggio(p - P_ASSAGGI);
 }
 function introQuiz() {
   const inCorso = Q && !Q.fatto && Q.scelte.some(([b]) => b != null), ultimo = leggi('profilo', null);
@@ -413,10 +539,10 @@ function introQuiz() {
   return `<div class="colonna quiz-intro">
     <span class="tessera grande">${ICONA_BUSSOLA}</span>
     <h1 tabindex="-1">Quale laurea fa per te?</h1>
-    <p class="sotto">Un quiz di 5 minuti che non ti chiede «ti piace la matematica?». Scegli tra situazioni concrete, poi confrontiamo le tue risposte con quello che si studia davvero in ogni laurea: i crediti degli esami di ${fmt(n)} corsi triennali e a ciclo unico.</p>
+    <p class="sotto">Un quiz di una decina di minuti che non ti chiede «ti piace la matematica?». Scegli tra situazioni concrete, poi confrontiamo le tue risposte con quello che si studia davvero in ogni laurea: i crediti degli esami di ${fmt(n)} corsi triennali e a ciclo unico.</p>
     <ol class="quiz-tappe">
-      <li><b>Cosa ti attira.</b> Dodici situazioni: in ognuna scegli l’attività che ti attira di più e quella che ti attira di meno. Se nessuna ti attira, puoi dirlo.</li>
-      <li><b>Il lavoro, il modo di studiare e le tue condizioni.</b> Che giornata vorresti tra dieci anni, se ti piace di più capire o applicare, se ti va bene un test d’ingresso, quanto sei disposto a spostarti.</li>
+      <li><b>Cosa ti attira.</b> Tredici situazioni: in ognuna scegli l’attività che ti attira di più e quella che ti attira di meno. Se nessuna ti attira, puoi dirlo.</li>
+      <li><b>Il lavoro, il modo di studiare e le tue condizioni.</b> Che giornata vorresti tra dieci anni, se ti piace di più capire o applicare, se ti va bene un test d’ingresso, quanto ti va di spostarti.</li>
       <li><b>Alla cieca.</b> Ti mostriamo il primo anno vero di sei lauree vicine al tuo profilo, senza dirti quali sono: scegli solo guardando gli esami.</li>
     </ol>
     <div class="quiz-azioni">
@@ -465,7 +591,7 @@ function schermataScelta(dom, campo, p) {
 }
 function schermataModo() {
   const pronte = MODO.every(m => Q[m.k] != null);
-  return `<div class="colonna quiz">${barraQuiz(13)}
+  return `<div class="colonna quiz">${barraQuiz(P_MODO)}
     <h1 class="quiz-domanda" tabindex="-1">Come ti piace imparare e lavorare?</h1>
     <p class="quiz-istruzione">Tre domande veloci. Servono a distinguere lauree che hanno materie simili ma si studiano in modo diverso.</p>
     <div class="condizioni">${MODO.map(m => `<fieldset class="cond"><legend>${esc(m.d)}</legend><div class="scelte modo">${m.o.map(([v, testo]) =>
@@ -480,7 +606,7 @@ function gruppoCond(k, titolo, scelte, nota) {
 }
 function schermataCondizioni() {
   const c = Q.cond;
-  return `<div class="colonna quiz">${barraQuiz(14)}
+  return `<div class="colonna quiz">${barraQuiz(P_CONDIZIONI)}
     <h1 class="quiz-domanda" tabindex="-1">Qualche condizione pratica</h1>
     <p class="quiz-istruzione">Non cambiano il tuo profilo: servono a scegliere quali lauree e quali corsi mostrarti.</p>
     <div class="condizioni">
@@ -497,7 +623,7 @@ function schermataCondizioni() {
 function schermataAssaggio(g) {
   const R = calcola(Q), giro = R.giri[g];
   const lettere = 'ABC';
-  return `<div class="colonna quiz">${barraQuiz(15 + g)}
+  return `<div class="colonna quiz">${barraQuiz(P_ASSAGGI + g)}
     <h1 class="quiz-domanda" tabindex="-1">${g === 0 ? 'Alla cieca: quale primo anno ti attira di più?' : 'Ancora tre, poi il risultato.'}</h1>
     <p class="quiz-istruzione">${g === 0 ? 'Sono i primi anni veri di tre lauree vicine al tuo profilo, presi dai piani degli atenei. Non ti diciamo quali sono: scegli solo guardando gli esami. Lo scoprirai alla fine.' : 'Altre tre lauree vicine al tuo profilo. Stessa regola: scegli guardando solo gli esami.'}</p>
     <div class="assaggi">${Q.ordineAssaggi[g].filter(i => giro[i]).map((i, n) => {
@@ -506,7 +632,7 @@ function schermataAssaggio(g) {
         <p class="assaggio-testa"><span class="lettera">${lettere[n]}</span>Primo anno</p>
         <ul>${c.esami.map(([nome, cfu]) => `<li><span>${esc(titoloCorso(nome))}</span><span class="cfu num">${cfu ? fmt(cfu) : ''}</span></li>`).join('')}</ul>
         ${c.altri || c.gruppi ? `<p class="tenue piccolo">${[c.altri ? `e altri ${c.altri} esami` : '', c.gruppi ? `${c.gruppi === 1 ? 'un gruppo' : `${c.gruppi} gruppi`} di esami a scelta` : ''].filter(Boolean).join(', ')}</p>` : ''}
-        <button type="button" class="btn${Q.assaggi[g] === i ? ' primario' : ''}" data-q="assaggio" data-i="${i}">${Q.assaggi[g] === i ? 'Scelto' : `Scelgo il ${lettere[n]}`}</button>
+        <button type="button" class="btn${Q.assaggi[g] === i ? ' primario' : ''}" data-q="assaggio" data-i="${i}">${Q.assaggi[g] === i ? 'Scelto' : `Scelgo la ${lettere[n]}`}</button>
       </div>`;
     }).join('')}</div>
     <div class="quiz-nav"><button type="button" class="btn" data-q="indietro">← Indietro</button><button type="button" class="btn" data-q="assaggio" data-i="3">Nessuno mi convince</button></div>
@@ -526,7 +652,10 @@ function vistaProfilo(codice) {
   // sceglie sempre filosofia ma non lingue e letteratura vedrebbe «Lingue, testi e storia» neutra); senza ambiti che
   // spiccano, le aree
   const spiccano = Object.keys(R.s).filter(a => R.s[a] >= SPICCA).sort((a, b) => R.s[b] - R.s[a]).slice(0, 3);
-  const titolo = f === 'piatto' ? 'Un profilo ancora da scoprire' : spiccano.length ? esc(maiuscola(elenco(spiccano.map(a => AMBITI_BREVI[a]))))
+  // un profilo «piatto» sulle otto aree può avere un ambito delle professioni sanitarie scelto e confermato dal lavoro
+  // immaginato (0,6 o più): allora il titolo è quello, non «ancora da scoprire»
+  const sanitarioChiaro = AMBITI_SANITARI.some(a => R.s[a] >= SPICCA);
+  const titolo = f === 'piatto' && !sanitarioChiaro ? 'Un profilo ancora da scoprire' : spiccano.length ? esc(maiuscola(elenco(spiccano.map(a => AMBITI_BREVI[a]))))
     : f === 'netto' ? esc(f1.nome) : f === 'due' ? `${esc(f1.nome)} <span class="piu-titolo">+</span> ${esc(f2.nome)}` : 'Curiosità a tutto campo';
   if (!R.voci.length) return `<div class="colonna vuoto"><b>Nessuna laurea rispetta tutte le condizioni che hai scelto.</b><span>Prova ad accettare i corsi a numero programmato o quelli in inglese.</span><a class="btn primario" href="#quiz" data-q="rifai">Rifai il quiz</a></div>`;
   // in testa le lauree alla pari con la prima (anche più di cinque, fino a otto), poi le altre fino a cinque
@@ -540,7 +669,7 @@ function vistaProfilo(codice) {
   }
   const NUMERI = ['', 'una', 'due', 'tre', 'quattro', 'cinque', 'sei', 'sette', 'otto'];
   const notaTesta = testa >= 2
-    ? `<p class="nota-pari"><b>Le prime ${NUMERI[testa] || fmt(testa)} sono alla pari.</b> La differenza fra loro è più piccola di quanto cambierebbe il risultato togliendo una sola delle tue risposte: guardale tutte allo stesso modo.</p>`
+    ? `<p class="nota-pari"><b>Le prime ${NUMERI[testa] || fmt(testa)} sono alla pari:</b> basterebbe togliere una sola delle tue risposte per cambiare il loro ordine. Guardale tutte allo stesso modo.</p>`
     : `<p class="nota-pari"><b>La prima si stacca dalle altre</b> più di quanto cambierebbe il risultato togliendo una sola delle tue risposte.</p>`;
   return `<div class="colonna pagina-profilo">
     <nav class="briciole" aria-label="Percorso"><a href="#quiz">Quiz</a><span>/</span><span>Il tuo profilo</span></nav>
@@ -563,7 +692,7 @@ function vistaProfilo(codice) {
       <label class="campo-idea">${ICONA_CERCA}<input id="idea-laurea" type="search" placeholder="Per esempio Medicina, Ingegneria, Psicologia" autocomplete="off" aria-label="La laurea che avevi in mente"></label>
       <div id="idea-risultati" aria-live="polite"></div>
     </section>
-    ${sorpresa ? `<section class="sezione"><h2>Ci avevi pensato?</h2><p class="tenue" style="margin-bottom:14px;max-width:62ch">Una laurea con pochi corsi in Italia, che in pochi conoscono, ma che somiglia al tuo profilo più di tante altre.</p><div class="lauree">${schedaLaurea(sorpresa, null, R, r)}</div></section>` : ''}
+    ${sorpresa ? `<section class="sezione"><h2>Ci avevi pensato?</h2><p class="tenue" style="margin-bottom:14px;max-width:62ch">Una laurea con pochi corsi in Italia, forse meno conosciuta, ma che somiglia al tuo profilo più di tante altre.</p><div class="lauree">${schedaLaurea(sorpresa, null, R, r)}</div></section>` : ''}
     ${fuori.length ? `<section class="sezione"><h2>Se cambiassi idea sulle condizioni</h2><ul class="fuori">${fuori.map(x => `<li><b>${esc(x.sanitarie ? 'Le professioni sanitarie' : nomePercorso(x.cl))}</b> ${x.sanitarie ? 'sarebbero' : 'sarebbe'} tra le lauree più vicine al tuo profilo, ma ${esc(x.escluso)}.</li>`).join('')}</ul></section>` : ''}
     <section class="sezione prossimi">
       <h2>E adesso?</h2>
@@ -582,18 +711,21 @@ function vistaProfilo(codice) {
     <details class="metodo sezione">
       <summary>Come abbiamo calcolato il risultato</summary>
       <ul>
-        <li>Le dodici situazioni coprono 24 ambiti di studio, ognuno due volte. Ogni volta che scegli un’attività come «di più» l’ambito sale, come «di meno» scende; se nessuna ti attira, non sale niente. Metà delle situazioni mette a confronto ambiti vicini (architettura e design, economia e gestione aziendale, biologia e chimica…), per capire quale dei due preferisci. Il lavoro che immagini conta un po’ meno.</li>
-        <li>Le attività descrivono il ragionamento di una disciplina, non un prodotto: costruire un sito o un’app oggi si fa con l’intelligenza artificiale, e direbbe poco su cosa ti piacerebbe studiare.</li>
+        <li>Le prime dodici situazioni coprono 24 ambiti di studio, ognuno due volte. Ogni volta che scegli un’attività come «di più» l’ambito sale, come «di meno» scende; se nessuna ti attira, non sale niente. Metà delle situazioni mette a confronto ambiti vicini (architettura e design, economia e gestione aziendale, biologia e chimica…), per capire quale dei due preferisci. Il lavoro che immagini conta un po’ meno.</li>
+        ${R.v3 ? '<li>Hai fatto il quiz quando le situazioni erano dodici: per le professioni sanitarie il calcolo è quello di allora, con i loro esami professionalizzanti contati come medicina.</li>'
+          : `<li>L’ultima situazione riguarda le professioni sanitarie (infermieristica, ostetricia, fisioterapia, logopedia, tecniche di radiologia e di laboratorio, dietistica, prevenzione…). Hanno quattro ambiti loro: assistenza, riabilitazione, tecniche sanitarie, prevenzione. Nei loro piani contano così gli esami professionalizzanti e il tirocinio, che sono più di metà dei crediti; il resto (anatomia, fisiologia, le materie cliniche) conta come biologia e medicina. In quella situazione le quattro attività gareggiano solo fra loro, quindi la scelta da sola pesa poco: pesa di più se hai detto anche che preferisci una laurea che porta a un mestiere preciso, e che una giornata riuscita è una in cui hai aiutato qualcuno a stare meglio.</li>
+        <li>Le professioni sanitarie sono ${S.orientamento.percorsi.filter(cl => SANITARIE.has(cl.classe)).length} in una scheda sola: per non farle uscire a chi ha scelto un’attività a caso, partono un passo indietro rispetto alle altre lauree. Ci si arriva anche per un’altra strada: se ti attira la medicina, i loro esami professionali e il tirocinio li contiamo come medicina, a cui sono vicini, e vale la lettura più favorevole delle due. Dentro la scheda l’ordine tiene conto anche di un nostro giudizio su quali altri interessi sono vicini a ciascuna professione (il movimento per Fisioterapia, le lingue e la psicologia per Logopedia, la fisica per Tecniche di radiologia, la biologia e la chimica per Tecniche di laboratorio…): non è un dato dei piani.</li>`}
+        <li>Le attività descrivono il ragionamento di una disciplina, non un prodotto: costruire un sito o un’app oggi si fa sempre più spesso anche con l’intelligenza artificiale, e direbbe poco su cosa ti piacerebbe studiare.</li>
         <li>Non usiamo le classi del Ministero ma quello che si studia davvero: dai settori scientifici degli esami nei piani di ${fmt(S.orientamento.percorsi.reduce((t, c) => t + c.conPiano, 0))} corsi abbiamo calcolato quanta parte dei crediti obbligatori è in ogni ambito, corso per corso, e abbiamo raggruppato i corsi in ${S.orientamento.percorsi.length} percorsi con piani simili. Così Ingegneria gestionale sta per conto suo e non dentro Ingegneria industriale. Dentro ogni percorso, i corsi sono in ordine di vicinanza ai tuoi gusti, ateneo per ateneo.</li>
         <li>La vicinanza mette insieme due cose: quanto la forma dei tuoi gusti somiglia a quella della laurea (anche quando la laurea mescola più ambiti, come Comunicazione o Biotecnologie) e quanta parte dei suoi crediti è in ambiti che ti attirano. Tolgono punti i crediti in ambiti che hai scartato.</li>
         <li>Le domande sul modo di studiare spostano di poco. Per ogni laurea abbiamo indicato noi se è più teorica o più applicata e se porta a lavorare con le persone: è un giudizio nostro, non un dato, e serve solo a separare lauree con materie simili.</li>
-        <li>Rifacciamo il calcolo dodici volte, togliendo ogni volta una delle situazioni: due lauree la cui differenza sta dentro quelle variazioni sono «alla pari». Nell’assaggio alla cieca la laurea scelta guadagna proprio quel margine: supera quelle con cui era alla pari, non quelle davvero più vicine a te.</li>
+        <li>Rifacciamo il calcolo una volta per ogni situazione, togliendola: due lauree la cui differenza sta dentro quelle variazioni sono «alla pari». Nell’assaggio alla cieca la laurea scelta guadagna proprio quel margine: supera quelle con cui era alla pari, non quelle davvero più vicine a te.</li>
         <li>Per dire quanto è netto il profilo confrontiamo la distanza fra le aree che ti attirano di più e quelle che ti attirano di meno con quella di 1.000 serie di risposte date a caso (che dicono «nessuna mi attira» dove l’hai detto tu).</li>
-        <li>Abbiamo provato il calcolo con 26 studenti simulati, di cui sapevamo quale laurea cercare e che rispondevano con qualche incertezza, come le persone vere: la laurea giusta è finita tra le prime tre in circa 9 casi su 10. Sono simulazioni, non persone vere: servono a scoprire errori nel calcolo, non a garantire il risultato.</li>
+        <li>Abbiamo provato il calcolo con 31 studenti simulati, di cui sapevamo quale laurea cercare e che rispondevano con qualche incertezza, come le persone vere: la laurea giusta è finita tra le prime tre in circa 9 casi su 10. Per le professioni sanitarie ne abbiamo aggiunti 10 che non vogliono fare il medico e che nell’ultima situazione scelgono l’attività della loro professione: la scheda è finita tra le prime tre in circa 2 casi su 3 quando le altre risposte confermavano la scelta, in circa 1 su 5 quando mancava la conferma del lavoro immaginato. Sono simulazioni, non persone vere: servono a scoprire errori nel calcolo, non a garantire il risultato.</li>
         <li>Non usiamo i voti: dicono quanto vai bene oggi in una materia, non quanto ti piacerà studiarla. È un aiuto per orientarsi, non un test psicologico.</li>
-        <li>Il quiz non prevede il mercato del lavoro fra dieci anni, e con l’intelligenza artificiale che cambia molti mestieri nessuno lo sa fare in modo affidabile. Ti aiuta a scegliere qualcosa che ti piacerà studiare, che è quello che fa arrivare in fondo.</li>
+        <li>Il quiz non prevede il mercato del lavoro fra dieci anni, e con l’intelligenza artificiale che cambia molti mestieri nessuno lo sa fare in modo affidabile. Ti aiuta a scegliere qualcosa che ti piacerà studiare: e studiare qualcosa che ti piace aiuta ad arrivare in fondo.</li>
       </ul>
-      <details class="ambiti"><summary>I tuoi 24 ambiti</summary>${tabellaAmbiti(R.s)}</details>
+      <details class="ambiti"><summary>I tuoi ${Object.keys(R.s).length} ambiti</summary>${tabellaAmbiti(R.s)}</details>
     </details>
   </div>`;
 }
@@ -604,23 +736,30 @@ function ritrattoDi(r, R, f) {
   const testo = (k, i) => `«${esc(SITUAZIONI[k].o[i][0])}»`;
   const primario = (k, i) => Object.keys(SITUAZIONI[k].o[i][1]).find(a => SITUAZIONI[k].o[i][1][a] === 1);
   const nomi = as => elenco(as.map(a => AMBITI_BREVI[a]));
-  if (N.livello === 'bassa') frasi.push('Le tue risposte non disegnano un profilo più netto di quello che darebbe la maggior parte delle risposte date a caso, quindi il quiz può dirti poco. Non è un difetto: forse ti interessano tante cose allo stesso modo, o queste situazioni non ti hanno detto molto. Prendi le lauree qui sotto come spunti da esplorare, e guarda i piani di studio di quelle che ti incuriosiscono.');
+  // gli ambiti delle professioni sanitarie non entrano nella misura di quanto è netto il profilo: se ne hai scelto uno e
+  // l'hai confermato con il lavoro (0,6 o più), si dice, invece di «il quiz può dirti poco»
+  const sanitarioChiaro = AMBITI_SANITARI.find(a => s[a] >= SPICCA);
+  if (N.livello === 'bassa' && sanitarioChiaro) frasi.push(`Sugli altri ambiti le tue risposte non disegnano un profilo più netto di quello che darebbe la maggior parte delle risposte date a caso, ma una cosa l’hai detta chiara: ti attirano le attività di ${esc(AMBITI_BREVI[sanitarioChiaro])}, e l’hai confermato con il lavoro che immagini. Per questo fra le lauree qui sotto guarda prima le professioni sanitarie; le altre prendile come spunti da esplorare.`);
+  else if (N.livello === 'bassa') frasi.push('Dalle tue risposte non escono preferenze chiare: un risultato così potrebbe venire anche da risposte date a caso, quindi il quiz può dirti poco. Non è un difetto: forse ti interessano tante cose allo stesso modo, o queste situazioni non ti hanno detto molto. Prendi le lauree qui sotto come spunti da esplorare, e guarda i piani degli esami di quelle che ti incuriosiscono.');
   const piace = Object.keys(s).filter(a => s[a] >= SOGLIA).sort((a, b) => s[b] - s[a]).slice(0, 3);
+  // titolo «ancora da scoprire» senza che le risposte sembrino date a caso: lo si dice prima delle preferenze (se ci sono)
+  if (N.livello !== 'bassa' && f === 'piatto') frasi.push(piace.length ? 'Qualche preferenza c’è, ma nel complesso le tue risposte non bastano per un risultato sicuro.'
+    : 'Nessun ambito ti ha attirato in modo chiaro: le tue risposte non bastano per un risultato sicuro.');
   if (piace.length) {
     const esempi = [], sempre = N.confermati.filter(([a, x]) => x > 0 && piace.includes(a)).map(([a]) => a);
-    r.scelte.forEach(([b], k) => { if (b !== NESSUNA && piace.includes(primario(k, b)) && esempi.length < 2) esempi.push(testo(k, b)); });
+    r.scelte.forEach(([b], k) => { if (b != null && b !== NESSUNA && piace.includes(primario(k, b)) && esempi.length < 2) esempi.push(testo(k, b)); });
     const quando = sempre.length === piace.length ? ', tutte e due le volte che te le abbiamo proposte'
       : sempre.length ? ` (quelle di ${esc(nomi(sempre))} tutte e due le volte che te le abbiamo proposte)` : '';
     frasi.push(`Hai preferito più spesso le attività di ${esc(nomi(piace))}${quando}${esempi.length ? `: per esempio ${elenco(esempi)}` : ''}.`);
   }
   const scarta = Object.keys(s).filter(a => s[a] <= -SOGLIA).sort((a, b) => s[a] - s[b]).slice(0, 3);
   if (scarta.length) {
-    const esempio = r.scelte.map(([, w], k) => scarta.includes(primario(k, w)) ? testo(k, w) : null).find(Boolean);
+    const esempio = r.scelte.map(([, w], k) => w != null && scarta.includes(primario(k, w)) ? testo(k, w) : null).find(Boolean);
     frasi.push(`Hai messo invece tra le meno attraenti le attività di ${esc(nomi(scarta))}${esempio ? `, come ${esempio}` : ''}.`);
   }
   const nessuna = r.scelte.filter(([b]) => b === NESSUNA).length;
   if (nessuna) frasi.push(nessuna === 1 ? 'In una situazione nessuna attività ti attirava davvero: lì abbiamo contato solo quella che ti attirava di meno.'
-    : `In ${nessuna} situazioni su 12 nessuna attività ti attirava davvero: lì abbiamo contato solo quella che ti attirava di meno.${nessuna >= 6 ? ' Sono tante: forse quello che cerchi è più specifico di queste situazioni, e la sezione «Avevi già in mente una laurea?» qui sotto può dirti di più.' : ''}`);
+    : `In ${nessuna} situazioni su ${r.scelte.filter(sc => !saltata(sc)).length} nessuna attività ti attirava davvero: lì abbiamo contato solo quella che ti attirava di meno.${nessuna >= 6 ? ' Sono tante: forse quello che cerchi è più specifico di queste situazioni, e la sezione «Avevi già in mente una laurea?» qui sotto può dirti di più.' : ''}`);
   const modo = [
     r.teoria === 0 ? 'ti interessa di più capire perché le cose funzionano' : r.teoria === 2 ? 'ti interessa di più usare quello che sai per risolvere problemi concreti' : '',
     r.persone === 0 ? 'ti vedi a lavorare soprattutto con le persone' : r.persone === 2 ? 'ti vedi a lavorare soprattutto con oggetti, dati, testi o progetti' : '',
@@ -633,8 +772,10 @@ function ritrattoDi(r, R, f) {
     if (ponte.length) frasi.push(`Le tue due aree si incontrano in lauree come ${elenco(ponte.map(cl => `«${esc(nomePercorso(cl))}»`))}.`);
   }
   if (N.contraddetti.length >= 3) frasi.push(`Alcune attività le hai scelte una volta e scartate l’altra (quelle di ${esc(nomi(N.contraddetti.slice(0, 3)))}): su quegli ambiti il quiz è meno sicuro.`);
-  if (N.livello !== 'bassa') frasi.push(N.pct >= .995 ? 'Il tuo profilo è più netto di tutte le 1.000 serie di risposte date a caso con cui l’abbiamo confrontato.'
-    : `Il tuo profilo è più netto di quello che darebbero ${Math.round(100 * N.pct)} serie di risposte date a caso su 100${N.livello === 'media' ? ': abbastanza per orientarti, non per decidere' : ''}.`);
+  // con il titolo «ancora da scoprire» la frase sulla nettezza contraddirebbe il titolo: non si mostra
+  if (N.livello !== 'bassa' && f !== 'piatto') frasi.push(N.pct >= .995 ? 'Le tue preferenze sono più chiare di quelle di tutti i 1.000 quiz compilati a caso con cui le abbiamo confrontate.'
+    : `Le tue preferenze sono più chiare di quelle di ${Math.round(100 * N.pct)} quiz su 100 compilati a caso${N.livello === 'media' ? ': abbastanza per orientarti, non per decidere' : ''}.`);
+  if (R.v3) frasi.push('Hai fatto il quiz quando non chiedeva ancora delle professioni sanitarie (infermieristica, fisioterapia, logopedia, tecniche di radiologia…): ora c’è una situazione in più, per chi vuole lavorare nella sanità senza fare il medico. Se ti interessano, <a href="#quiz" data-q="rifai">rifai il quiz</a>.');
   return frasi.filter(Boolean);
 }
 // «Avevi già in mente una laurea?»: si cerca fra i nomi dei corsi, poi si mostra dove sta la classe nella tua classifica
@@ -699,8 +840,9 @@ function graficoFamiglie(fam, s) {
         <span class="binario"><i class="${f.v >= 0 ? 'piace' : 'scarta'}" style="${f.v >= 0 ? `left:50%;width:${w}%` : `right:50%;width:${w}%`}"></i></span>
         <span class="giudizio">${giudizioFamiglia(f.v)}${(() => {
           // un'area tiepida può contenere un ambito che spicca: si dice, invece di lasciarlo sparire nella media
-          const forti = f.ambiti.filter(a => s[a] >= SPICCA);
-          return f.v < .15 && forti.length ? `, ma ${esc(elenco(forti.map(a => AMBITI_BREVI[a])))} sì` : '';
+          // quelli che non entrano nella media (le professioni sanitarie) si dicono sempre, quando ti attirano
+          const forti = f.v < .15 ? f.ambiti.filter(a => s[a] >= SPICCA) : [], anche = (f.anche || []).filter(a => s[a] >= SOGLIA);
+          return forti.length ? `, ma ${esc(elenco([...forti, ...anche].map(a => AMBITI_BREVI[a])))} sì` : anche.length ? `; ${esc(elenco(anche.map(a => AMBITI_BREVI[a])))}: ${giudizio(Math.max(...anche.map(a => s[a])))}` : '';
         })()}</span></div>`;
     }).join('')}</div>
   </figure>`;
@@ -734,7 +876,8 @@ function corsiDaMostrare(x, r, s) {
   // i corsi che rispettano le condizioni (vicino a casa, se l'hai chiesto), dal più vicino ai tuoi gusti: la stessa laurea
   // cambia da un ateneo all'altro, e il piano di ogni corso lo dice. A parità, il più vicino a casa; tre atenei diversi
   const ok = x.adatti.slice(), dentro = ok.filter(c => vicino(c, r.cond));
-  const gusto = new Map(ok.map(c => { const q = quoteCorso(c.i); return [c, q ? affinita({ ...x.cl, quote: q }, s, r) : -1]; }));
+  const v3 = senzaSanitarie(r);
+  const gusto = new Map(ok.map(c => { const q = quoteCorso(c.i); return [c, q ? affinita({ ...x.cl, quote: v3 ? quotePiegate(q) : q, quoteMed: quotePiegate(q) }, s, r) : -1]; }));
   const visti = new Set();
   const lista = (dentro.length ? dentro : ok)
     .sort((a, b) => (gusto.get(b) - gusto.get(a)) || ((distanzaDi(a) ?? 1e9) - (distanzaDi(b) ?? 1e9)) || a.ateneoNome.localeCompare(b.ateneoNome, 'it'))
@@ -742,11 +885,13 @@ function corsiDaMostrare(x, r, s) {
   return { lista: lista.slice(0, 3), dentro: dentro.length, tutti: ok.length };
 }
 function schedaLaurea(v, posizione, R, r) {
-  const x = v.classi[0], cl = x.cl, g = gustiDellaClasse(cl, R.s), alla = R.scelte.has(v);
+  // per una professione sanitaria arrivata per la strada della medicina, la barra e le frasi usano quella lettura
+  const comeLetta = y => viaMedicina(y.cl, R.s, r) ? { ...y.cl, quote: y.cl.quoteMed } : y.cl;
+  const x = v.classi[0], cl = x.cl, viaMed = viaMedicina(cl, R.s, r), g = gustiDellaClasse(comeLetta(x), R.s), alla = R.scelte.has(v);
   const c = corsiDaMostrare(x, r, R.s), camp = cl.campione, ese = camp && S.corsi[camp.corso];
   const dove = r.cond.dove < 2 && S.casa ? (r.cond.dove === 0 ? `entro ${KM_VICINO} km da casa` : 'nella tua regione') : '';
   const titolo = v.sanitarie ? 'Professioni sanitarie' : nomePercorso(cl);
-  const sotto = v.sanitarie ? `${v.classi.length === 1 ? '1 professione' : `${v.classi.length} professioni`} · lauree triennali abilitanti, a numero programmato`
+  const sotto = v.sanitarie ? `${v.classi.length === 1 ? '1 professione' : `${v.classi.length} professioni`} · lauree triennali che abilitano alla professione, a numero programmato`
     : `${classiDi(cl)} · ${cl.tipo === 'ciclo unico' ? `Ciclo unico, ${/LM-41|LM-46/.test(cl.classe) ? 6 : 5} anni` : 'Triennale'} · ${fmt(x.corsi.length)} corsi in Italia`;
   const nomi = cl.nomiComuni.filter(([n]) => norma(n) !== norma(titolo)).slice(0, 3).map(([n]) => `«${esc(n)}»`);
   const primissima = v === R.voci[0];
@@ -761,17 +906,17 @@ function schedaLaurea(v, posizione, R, r) {
       ${alla ? '<span class="etichetta forte cieca">Scelta alla cieca</span>' : ''}
     </header>
     ${barraGusti(g)}
-    <div class="perche">${perche(g)}</div>
+    <div class="perche">${perche(g)}${viaMed ? '<p><b>Come l’abbiamo letta:</b> in queste lauree più di metà dei crediti sono esami professionali e tirocinio. Per te li abbiamo contati come medicina, a cui sono vicini, perché è la medicina che ti attira.</p>' : ''}</div>
     ${nomi.length ? `<p class="tenue piccolo">${v.sanitarie ? 'Per esempio' : 'Di solito i corsi si chiamano'} ${elenco(nomi)}.</p>` : ''}
     ${v.classi.length > 1 ? `<div class="varianti"><p class="piccolo"><b>${v.sanitarie ? 'Le professioni, dalla più vicina ai tuoi gusti' : 'Le varianti di questa laurea, dalla più vicina ai tuoi gusti'}</b></p>
-      <ul class="sottoclassi">${v.classi.map(y => `<li><b>${esc(nomePercorso(y.cl))}</b><span class="tenue"> · ${fmt(y.corsi.length)} corsi · ${pct(gustiDellaClasse(y.cl, R.s).piace)} ti attira</span></li>`).join('')}</ul></div>` : ''}
+      <ul class="sottoclassi">${v.classi.map(y => `<li><b>${esc(nomePercorso(y.cl))}</b><span class="tenue"> · ${fmt(y.corsi.length)} corsi · ${pct(gustiDellaClasse(comeLetta(y), R.s).piace)} ti attira</span></li>`).join('')}</ul></div>` : ''}
     ${camp && ese ? `<details class="primo-anno"${primissima ? ' open' : ''}><summary>Un primo anno vero, per esempio ${esc(ese.ateneoNome)}${cittaDi(ese) ? `, ${esc(cittaDi(ese))}` : ''}</summary>
       <ul>${camp.esami.map(([n, k]) => `<li><span>${esc(titoloCorso(n))}</span><span class="cfu num">${k ? `${fmt(k)} CFU` : ''}</span></li>`).join('')}</ul>
       <a href="#corso.${ese.i}">Il piano completo di questo corso →</a></details>` : ''}
     <div class="laurea-corsi">
       <p class="piccolo"><b>${c.dentro ? `Corsi ${dove || 'per te'}` : 'I corsi più vicini'}</b>${dove && !c.dentro ? ` <span class="tenue">· nessuno ${esc(dove)}</span>` : ''} <span class="tenue">· dal piano più vicino ai tuoi gusti</span></p>
       <div class="elenco">${c.lista.map(x => rigaCorso(x)).join('')}</div>
-      ${v.sanitarie ? `<a class="btn" href="#esplora" data-classe-link="${esc(cl.classe)}">Tutti i ${fmt(x.corsi.length)} corsi di ${esc(nomePercorso(cl))}</a>`
+      ${v.sanitarie ? `<a class="btn" href="#esplora" data-classe-link="${esc(cl.classe)}">Tutti ${iGli(x.corsi.length)} ${fmt(x.corsi.length)} corsi di ${esc(nomePercorso(cl))}</a>`
         : `<button type="button" class="btn" data-esempio="${esc(titolo)}">Cerca «${esc(titolo)}» fra tutti i corsi</button>`}
     </div>
   </article>`;
@@ -790,7 +935,7 @@ function passa(n) {
 function passaA(n) {
   Q.passo = n;
   // gli assaggi: se un giro ha meno di due lauree da mostrare, si salta
-  if (n >= 15 && n < PASSI && calcola(Q).giri[n - 15].length < 2) { Q.assaggi[n - 15] = null; return passaA(n + 1); }
+  if (n >= P_ASSAGGI && n < PASSI && calcola(Q).giri[n - P_ASSAGGI].length < 2) { Q.assaggi[n - P_ASSAGGI] = null; return passaA(n + 1); }
   if (n >= PASSI) return finisci();
   salva('quiz', Q); mostraQuiz();
 }
@@ -816,7 +961,7 @@ function clicQuiz(ev) {
   if (a === 'inizia') { nuovoQuiz(); mostraQuiz(); }
   else if (a === 'riprendi') { Q.passo = Math.max(0, Q.passo); salva('quiz', Q); mostraQuiz(); }
   else if (a === 'rifai') { if (Q) { Q.fatto = true; salva('quiz', Q); } }
-  else if (a === 'indietro') { clearTimeout(attesaQuiz); let n = Q.passo - 1; while (n >= 15 && calcola(Q).giri[n - 15].length < 2) n--; Q.passo = n; salva('quiz', Q); mostraQuiz(); }
+  else if (a === 'indietro') { clearTimeout(attesaQuiz); let n = Q.passo - 1; while (n >= P_ASSAGGI && calcola(Q).giri[n - P_ASSAGGI].length < 2) n--; Q.passo = n; salva('quiz', Q); mostraQuiz(); }
   else if (a === 'avanti') passa(Q.passo + 1);
   else if (a === 'nessuna') {
     const k = Q.passo, sc = Q.scelte[k], completa = sc[0] != null && sc[1] != null;
@@ -842,7 +987,7 @@ function clicQuiz(ev) {
     clearTimeout(attesaQuiz); attesaQuiz = setTimeout(() => { if (Q.passo === k && rotta().nome === 'quiz') passa(k + 1); }, 350);
   }
   else if (a === 'cond') { Q.cond[b.dataset.k] = +b.dataset.v; salva('quiz', Q); mostraQuiz(false, `[data-q="cond"][data-k="${b.dataset.k}"][data-v="${b.dataset.v}"]`); }
-  else if (a === 'assaggio') { Q.assaggi[Q.passo - 15] = i; passa(Q.passo + 1); }
+  else if (a === 'assaggio') { Q.assaggi[Q.passo - P_ASSAGGI] = i; passa(Q.passo + 1); }
   else if (a === 'confronta') {
     const r = decodifica(rotta().arg), R = calcola(r);
     S.confronto = R.voci.slice(0, 3).map(v => corsiDaMostrare(v.classi[0], r, R.s).lista[0]).filter(Boolean).map(c => c.i);
