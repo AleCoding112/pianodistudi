@@ -293,7 +293,7 @@ function segnabili(t, k) {
 function schermataTriennale() {
   const t = QM.i != null ? S.corsi[QM.i] : null;
   let corpo = '', pronto = false;
-  const altri = (testo, sim) => `<p class="nota avviso">${testo} ${sim.length ? 'Scegli il corso della stessa classe che gli somiglia di più: gli esami saranno simili, anche se non uguali.' : 'E non c’è un altro corso della stessa classe con il piano: cerca un corso simile.'}</p>
+  const altri = (testo, sim) => `<p class="nota avviso">${testo} ${sim.length ? 'Scegli qui sotto il corso più simile fra quelli dello stesso tipo (la stessa classe di laurea) che hanno il piano: gli esami saranno simili, anche se non uguali.' : 'E non c’è un altro corso dello stesso tipo (la stessa classe di laurea) con il piano: cerca un corso simile.'}</p>
       ${sim.length ? `<div class="elenco scelta-triennale">${sim.map(c => `<button type="button" class="riga" data-m="triennale" data-i="${c.i}"><div style="min-width:0"><div class="titolo-riga">${esc(titoloCorso(c.nome))}${htmlVariante(c)}</div><div class="sotto-riga">${esc(c.ateneoNome)}${cittaDi(c) ? ` · ${esc(cittaDi(c))}` : ''}</div></div></button>`).join('')}</div>` : ''}`;
   if (t && !triennaleValida(QM.i)) corpo = altri(`Di ${esc(titoloCorso(t.nome))} (${esc(t.ateneoNome)}) non abbiamo il piano degli esami.`, simili(t));
   else if (t) {
@@ -301,17 +301,17 @@ function schermataTriennale() {
     const testa = `<div class="triennale-scelta"><div><div class="titolo-riga">${esc(titoloCorso(t.nome))}${htmlVariante(t)}</div><div class="sotto-riga">${esc(t.ateneoNome)}${cittaDi(t) ? ` · ${esc(cittaDi(t))}` : ''}</div></div>
       <button type="button" class="btn" data-m="cambia-triennale">Cambia</button></div>`;
     // il piano c'è ma non dice di quali settori sono gli esami (succede con alcune fonti): il quiz non saprebbe confrontarlo
-    if (!buoni.some(Boolean)) corpo = testa + altri(`Il piano di questo corso non indica il settore scientifico degli esami, e senza il quiz non sa di cosa sono fatti.`, simili(t));
+    if (!buoni.some(Boolean)) corpo = testa + altri(`Il piano di questo corso non dice a quale materia (settore scientifico) appartiene ogni esame: senza questa informazione il quiz non può confrontarlo con le magistrali.`, simili(t));
     else {
       pronto = buoni[QM.curr];
-      corpo = testa + (p.length > 1 ? `<fieldset class="cond" style="margin-top:22px"><legend>Quale curriculum hai fatto?</legend><div class="scelte">${p.map(([nome], k) =>
+      corpo = testa + (p.length > 1 ? `<fieldset class="cond" style="margin-top:22px"><legend>Quale percorso (curriculum) hai fatto?</legend><div class="scelte">${p.map(([nome], k) =>
         `<button type="button" class="scelta-btn" data-m="curr" data-i="${k}" aria-pressed="${QM.curr === k}">${esc(titoloCorso(nome))}</button>`).join('')}</div></fieldset>` : '')
-        + (pronto ? '' : '<p class="nota avviso">Il piano di questo curriculum non indica il settore scientifico degli esami, e senza il quiz non sa di cosa sono fatti: scegline un altro.</p>');
+        + (pronto ? '' : '<p class="nota avviso">Il piano di questo curriculum non dice a quale materia (settore scientifico) appartiene ogni esame: senza questa informazione il quiz non può usarlo. Scegline un altro.</p>');
     }
   }
   return `<div class="colonna quiz">${barraMag(0)}
     <h1 class="quiz-domanda" tabindex="-1">Qual è la tua triennale?</h1>
-    <p class="quiz-istruzione">Prendiamo il piano degli esami del corso per l’anno ${ANNO_ACCADEMICO}. Se nel frattempo è cambiato un po’, nella prossima schermata segnerai solo gli esami che ricordi.</p>
+    <p class="quiz-istruzione">Prendiamo il piano più recente del tuo corso (di solito quello di chi si è iscritto nel ${ANNO_ACCADEMICO}): il tuo può essere un po’ diverso, e nella prossima schermata segnerai solo gli esami che riconosci.</p>
     ${t && triennaleValida(QM.i) ? corpo : `<form class="cerca-triennale" role="search" onsubmit="return false"><label class="campo">${ICONA_CERCA}<input id="mag-cerca" type="search" placeholder="Nome del corso, ateneo o città" autocomplete="off" aria-label="Cerca la tua triennale"></label></form>
       <div id="mag-risultati" aria-live="polite"></div>${corpo}`}
     ${navMag(pronto)}
@@ -329,7 +329,7 @@ function schermataEsami() {
   const segnati = Object.values(QM.voti).filter(v => v !== 0).length;
   return `<div class="colonna quiz">${barraMag(1)}
     <h1 class="quiz-domanda" tabindex="-1">Quali esami ti sono piaciuti?</h1>
-    ${segnabili(t, QM.curr) < MIN_SEGNATI ? '<p class="nota avviso">Il piano di questo curriculum non indica il settore scientifico degli esami, e senza il quiz non sa di cosa sono fatti: torna indietro e scegli un altro corso o curriculum.</p>' : ''}
+    ${segnabili(t, QM.curr) < MIN_SEGNATI ? '<p class="nota avviso">Il piano di questo curriculum non dice a quale materia (settore scientifico) appartiene ogni esame: senza questa informazione il quiz non può usarlo. Torna indietro e scegli un altro corso o curriculum.</p>' : ''}
     <p class="quiz-istruzione">Segna quelli che ti sono piaciuti e quelli che non ti sono piaciuti; gli altri lasciali così. Conta la materia, non il voto né il professore. Fra gli esami a scelta, segna quelli che hai fatto.</p>
     ${anni.map(a => `<section class="anno-voti"><h2>${a.anno ? `${a.anno}° anno` : 'In qualsiasi anno'}</h2>${a.blocchi.map(({ b, esami }) => `
       ${b.s ? `<p class="gruppo-voti">A scelta · ${esc(regolaGruppo(b))}${b.e ? ` · ${esc(b.e)}` : ''}</p>` : ''}
@@ -430,9 +430,9 @@ function percheMag(x, R) {
   const piaciuti = nomi(1).slice(0, 3), no = nomi(-1).slice(0, 2);
   const nuovi = Object.entries(x.m.ql).filter(([a, q]) => q >= .1 && (T.cl[a] || 0) < CFU_NUOVO).sort((a, b) => b[1] - a[1])
     .map(([a]) => M.ambiti[a]).map(a => AMBITI_BREVI[a] + (QM.aree.includes(a) ? ' (ti attira)' : ''));
-  return (x.m.nome ? `<div class="sotto-riga">Curriculum più adatto: ${esc(titoloCorso(x.m.nome))}</div>` : '')
+  return (x.m.nome ? `<div class="sotto-riga">Percorso (curriculum) più adatto: ${esc(titoloCorso(x.m.nome))}</div>` : '')
     + (piaciuti.length ? `<div class="sotto-riga perche piu">Riprende esami che ti sono piaciuti: ${esc(elenco(piaciuti))}</div>` : '')
-    + (no.length ? `<div class="sotto-riga perche meno">E materie di esami che non ti sono piaciuti: ${esc(elenco(no))}</div>` : '')
+    + (no.length ? `<div class="sotto-riga perche meno">Ma anche materie che non ti sono piaciute: ${esc(elenco(no))}</div>` : '')
     + (nuovi.length ? `<div class="sotto-riga">Materie nuove: ${esc(elenco(nuovi))}</div>` : '');
 }
 function risultatoMag() {

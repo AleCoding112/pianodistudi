@@ -24,6 +24,16 @@ const ICONE = {
 };
 const ANNO_ACCADEMICO = '2026/27';
 const ANNO_COORTE = ANNO_ACCADEMICO.slice(0, 4);   // l'anno d'iscrizione di cui il sito mostra i piani: un piano di un'altra coorte lo dichiara
+// l'anno d'iscrizione dopo quello del catalogo: chi legge adesso dalle superiori si iscrive lì, e il suo piano può cambiare
+const ANNO_DOPO = `${+ANNO_COORTE + 1}/${String(+ANNO_COORTE + 2).slice(2)}`;
+// l'anno accademico scritto corto, come nel resto del sito: «2025/2026» → «2025/26»
+const annoBreve = a => String(a).replace(/^(\d{4})\/\d{2}(\d{2})$/, '$1/$2');
+// le lingue di un corso in parole: «Italiano - Tedesco - Inglese» → «Italiano, tedesco e inglese»
+// l'articolo plurale davanti a un numero: «gli 8», «gli 11», «gli 83», «gli 800», ma «i 149»
+const iGli = n => /^8/.test(String(n)) || n === 11 || (n >= 11000 && n < 12000) ? 'gli' : 'i';
+// e quello singolare davanti a una percentuale: «l’83%», «l’11%», «l’1,5%», ma «il 63%»
+const ilL = n => /^(8|1(,|$)|11(,|$))/.test(fmt(n)) ? 'l’' : 'il ';
+const linguaBella = l => l ? elencoSemplice(String(l).split(/\s+-\s+/).map((x, k) => k ? x.toLowerCase() : x)) : '';
 const NOME = 'Piano di Studi';
 // sul sito pubblicato (non nell'artifact) ci sono le pagine indice: i link ci portano anche i motori di ricerca
 const PAGINE = !!document.querySelector('link[rel="canonical"]');
@@ -92,7 +102,13 @@ async function carica() {
   const [ind, com, lav] = await Promise.all([json('dati/indice.json'), json('dati/comuni.json'), json('dati/lavoro.json').catch(() => null)]);
   S.annoLavoro = lav?.anno;
   S.diz = ind.diz; S.atenei = ind.atenei; S.macro = ind.macro; S.settori = (ind.settori || []).map(([r, k]) => [new RegExp(r), k]); S.nomiSettori = ind.nomiSettori || {}; S.motivi = ind.motivi; S.statali = ind.statali || {}; S.doppiAtenei = ind.doppiAtenei || []; S.regoleAccesso = ind.regoleAccesso || null; S.comuni = com.comuni; S.regioni = com.regioni; S.aggiornato = ind.aggiornato;
-  const d = $('#aggiornato'); if (d && S.aggiornato) d.textContent = dataLunga(S.aggiornato);
+  // nel piè di pagina la preposizione va con la data («all’11 novembre», «al 3 novembre»): nelle pagine scritte prima
+  // la parola «al» sta fuori dal segnaposto, e si toglie
+  const d = $('#aggiornato');
+  if (d && S.aggiornato) {
+    const t = d.previousSibling; if (t && t.nodeType === 3) t.nodeValue = t.nodeValue.replace(/\s+al\s*$/, ' ');
+    d.textContent = conArticolo(S.aggiornato, 'al', 'all’');
+  }
   const D = ind.diz;
   S.corsi = ind.corsi.map((v, i) => {
     const c = { i, nome: v[0], ateneo: D.ateneo[v[1]], classe: v[2], tipo: D.tipo[v[3]], area: D.area[v[4]], gruppo: D.gruppo[v[5]], comune: v[6],
@@ -270,7 +286,7 @@ function vistaCasa() {
       <div>
         <p class="anno-accademico">Anno accademico ${ANNO_ACCADEMICO}</p>
         <h1>Cosa studiare. E <span class="evidenziato">dove</span>.</h1>
-        <p class="sotto">Tutti i corsi di laurea italiani, con il piano degli esami anno per anno: cosa studi davvero, in quale città, e come si entra.</p>
+        <p class="sotto">Tutti i corsi di laurea italiani e, per quasi tutti, il piano degli esami anno per anno: cosa studi davvero, in quale città, e come si entra.</p>
         <form class="cerca-grande" id="form-casa" role="search">
           <label class="campo">${ICONA_CERCA}<input id="cerca-casa" type="search" placeholder="Cerca corso, ateneo o città" autocomplete="off" aria-label="Cerca un corso, un ateneo o una città"></label>
           <div class="esempi"><span class="tenue piccolo">Prova:</span>${['Economia', 'Psicologia', 'Ingegneria informatica', 'Medicina', 'Bologna'].map(e => `<button type="button" data-esempio="${e}">${e}</button>`).join('')}</div>
@@ -285,7 +301,7 @@ function vistaCasa() {
     <a class="invito-quiz" href="#quiz">
       <span class="tessera">${ICONA_BUSSOLA}</span>
       <span class="invito-testo"><span class="eyebrow">Non sai ancora cosa scegliere?</span><b>Fai il quiz: quale laurea fa per te?</b>
-        <span class="tenue">Cinque minuti, niente «ti piace la matematica?». Scegli tra situazioni concrete e assaggia alla cieca il primo anno di sei lauree: il risultato si basa sugli esami veri.</span></span>
+        <span class="tenue">Una decina di minuti, niente «ti piace la matematica?». Scegli tra situazioni concrete e assaggia alla cieca il primo anno di sei lauree: il risultato si basa sugli esami veri.</span></span>
       <span class="btn primario">Inizia</span>
     </a>
     <a class="invito-quiz secondo" href="#magistrale">
@@ -296,13 +312,13 @@ function vistaCasa() {
     </a>
     <div class="cifre">
       <div><b>${fmt(n)}</b><span>corsi di laurea attivi</span></div>
-      <div><b>${fmt(atenei)}</b><span>università</span></div>
+      <div><b>${fmt(atenei)}</b><span>atenei (università)</span></div>
       <div><b>${fmt(conPiano)}</b><span>con il piano degli esami</span></div>
       <div><b>${fmt(new Set(S.corsi.filter(c => c.piano).map(c => c.ateneo)).size)}</b><span>atenei con i piani raccolti</span></div>
     </div>
     <div class="strade">
       <a class="strada" href="#esplora" data-preset="primo"><span class="tessera">${ICONE.libro}</span><span class="eyebrow">Dopo le superiori</span><h3>Scegli il tuo corso</h3><p>Triennali e corsi a ciclo unico (come Medicina o Giurisprudenza): filtra per area e città, guarda gli esami anno per anno, confronta gli atenei.</p></a>
-      <a class="strada" href="#esplora" data-preset="magistrale"><span class="tessera">${ICONE.gradini}</span><span class="eyebrow">Dopo la triennale</span><h3>Trova la magistrale</h3><p>Per ogni corso: esami, curricula e, dove l’ateneo li pubblica, i requisiti per entrare. Nella pagina della tua triennale, le magistrali più affini.</p></a>
+      <a class="strada" href="#esplora" data-preset="magistrale"><span class="tessera">${ICONE.gradini}</span><span class="eyebrow">Dopo la triennale</span><h3>Trova la magistrale</h3><p>Per ogni corso: esami, percorsi (curricula) e, dove l’ateneo li pubblica, i requisiti per entrare. Nella pagina della tua triennale, le magistrali più affini.</p></a>
       <a class="strada" href="#materie"><span class="tessera">${ICONE.materia}</span><span class="eyebrow">Parti da una materia</span><h3>Dove si studia…</h3><p>Scrivi un esame, per esempio «Intelligenza artificiale»: ecco i corsi che lo hanno nel piano.</p></a>
     </div>
     <section class="aree-casa">
@@ -314,7 +330,7 @@ function vistaCasa() {
 
 function campoCasa() {
   const nome = S.casa && S.comuni[S.casa] ? `${S.comuni[S.casa][0]} (${S.comuni[S.casa][1]})` : '';
-  return `<div class="casa"><label for="casa">${ICONE.luogo}Da dove parti?</label><input id="casa" list="elenco-comuni" value="${esc(nome)}" placeholder="Il tuo comune" autocomplete="off"><datalist id="elenco-comuni"></datalist>${S.casa ? '<span class="tenue piccolo">Mostro le distanze in linea d’aria.</span>' : ''}</div>`;
+  return `<div class="casa"><label for="casa">${ICONE.luogo}Da dove parti?</label><input id="casa" list="elenco-comuni" value="${esc(nome)}" placeholder="Il tuo comune" autocomplete="off"><datalist id="elenco-comuni"></datalist>${S.casa ? '<span class="tenue piccolo">Le distanze sono in linea d’aria.</span>' : ''}</div>`;
 }
 function riempiComuni(q) {
   const dl = $('#elenco-comuni'); if (!dl) return;
@@ -355,7 +371,7 @@ function filtriEsplora() {
   return `
       <fieldset><legend>Tipo di laurea</legend><div class="scelte">
         <button type="button" class="scelta-btn" data-filtro="tipo" data-valore="" aria-pressed="${!f.tipo}">Tutti</button>
-        <button type="button" class="scelta-btn" data-filtro="tipo" data-valore="primo" aria-pressed="${f.tipo === 'primo'}">Dopo il diploma</button>
+        <button type="button" class="scelta-btn" data-filtro="tipo" data-valore="primo" aria-pressed="${f.tipo === 'primo'}">Dopo le superiori</button>
         ${tipi.map(([t, n]) => `<button type="button" class="scelta-btn" data-filtro="tipo" data-valore="${esc(t)}" aria-pressed="${f.tipo === t}">${TIPI_BREVI[t] || esc(t)}<small>${fmt(n)}</small></button>`).join('')}
       </div></fieldset>
       <fieldset><legend>Cosa vuoi studiare</legend>
@@ -367,7 +383,7 @@ function filtriEsplora() {
       <fieldset><legend>Da escludere</legend>
         <p class="nota-filtro">Materie che non vuoi trovare fra gli esami obbligatori.</p>
         <div class="scelte">${aree.filter(([k]) => !f.voglio.includes(k)).map(([k, n]) => chipArea('evito', k, n)).join('')}</div>
-        ${f.evito.length ? scelte('quanto', [['niente', 'Nessun esame'], ['poco', `Al massimo il ${MAX_POCO}%`]]) + `<p class="nota-filtro">${f.quanto === 'poco' ? `Al massimo il ${MAX_POCO}% dei crediti obbligatori (circa uno o due esami)` : 'Nessun esame obbligatorio (meno del 3% dei crediti)'}, nel primo curriculum se ce n’è più di uno. Fra gli esami a scelta possono esserci.</p>` : ''}
+        ${f.evito.length ? scelte('quanto', [['niente', 'Nessun esame'], ['poco', `Al massimo il ${MAX_POCO}%`]]) + `<p class="nota-filtro">${f.quanto === 'poco' ? `Al massimo il ${MAX_POCO}% dei crediti obbligatori in queste materie (circa uno o due esami)` : 'Nessun esame obbligatorio di queste materie (al massimo un piccolo modulo, sotto il 3% dei crediti)'}. Se il corso ha più percorsi, contiamo il primo. Fra gli esami a scelta possono esserci.</p>` : ''}
       </fieldset>
       <fieldset><legend>Con un esame di</legend>
         <input id="f-esame" type="search" value="${esc(f.esame)}" placeholder="Per esempio: intelligenza artificiale" autocomplete="off" aria-label="Con un esame di">
@@ -375,10 +391,11 @@ function filtriEsplora() {
       </fieldset>
       <fieldset><legend>Lingua</legend>${scelte('inglese', [['', 'Tutte'], ['tutto', 'Solo in inglese'], ['anche', 'Anche in parte in inglese']])}</fieldset>
       <fieldset><legend>Regione</legend><select id="f-regione" data-filtro-select="regione" aria-label="Regione"><option value="">Tutta Italia</option>${regioni.map(g => `<option ${f.regione === g ? 'selected' : ''}>${esc(g)}</option>`).join('')}</select></fieldset>
-      <fieldset><legend>Accesso</legend>${scelte('accesso', [['', 'Tutti'], ['libero', 'Libero'], ['programmato', 'Numero programmato']])}</fieldset>
-      <fieldset><legend>Area del Ministero</legend><select id="f-gruppo" data-filtro-select="gruppo" aria-label="Area del Ministero"><option value="">Tutte le aree</option>${gruppi.map(g => `<option ${f.gruppo === g ? 'selected' : ''}>${esc(g)}</option>`).join('')}</select>
-        <p class="nota-filtro">La classificazione ufficiale dei corsi: vale anche per quelli senza piano degli esami.</p>
-        ${f.gruppo ? `<p class="nota-filtro forte">Le classi di laurea dell’area</p><div class="scelte classi-area">
+      <fieldset><legend>Accesso</legend>${scelte('accesso', [['', 'Tutti'], ['libero', 'Libero'], ['programmato', 'Numero programmato']])}
+        <p class="nota-filtro">A numero programmato (numero chiuso): posti limitati, con un test o una selezione per entrare.</p></fieldset>
+      <fieldset><legend>Area ufficiale del Ministero</legend><select id="f-gruppo" data-filtro-select="gruppo" aria-label="Area ufficiale del Ministero"><option value="">Tutte le aree</option>${gruppi.map(g => `<option ${f.gruppo === g ? 'selected' : ''}>${esc(g)}</option>`).join('')}</select>
+        <p class="nota-filtro">I gruppi ufficiali del Ministero, diversi da «Cosa vuoi studiare»: comprendono anche i corsi di cui non abbiamo il piano.</p>
+        ${f.gruppo ? `<p class="nota-filtro forte">Tipi di corso in quest’area (classi di laurea)</p><div class="scelte classi-area">
           <button type="button" class="scelta-btn" data-filtro="classe" data-valore="" aria-pressed="${!f.classe}">Tutte</button>
           ${classiDelGruppo(f.gruppo).map(([cl, nome, n]) => `<button type="button" class="scelta-btn" data-filtro="classe" data-valore="${esc(cl)}" aria-pressed="${f.classe === cl}" title="${esc(cl)}">${esc(nome)}<small>${fmt(n)}</small></button>`).join('')}</div>` : ''}</fieldset>
       <fieldset><legend>Altro</legend>
@@ -398,7 +415,7 @@ function risultatiEsplora() {
     S.ordine === 'lavoro' && perLavoro ? `in ordine di laureati che lavorano un anno dopo la laurea (AlmaLaurea, laureati del ${S.annoLavoro}): prima i corsi con almeno ${RISPOSTE_LAVORO} intervistati, poi quelli con meno, in fondo quelli senza dati. Dipende anche da chi si iscrive e da dove: non è un voto al corso` : ''].filter(Boolean);
   const quota = c => f.voglio.length ? `<div class="quota-scelta">${esc(elencoSemplice(f.voglio.map(k => nomeMacro(k))))}: ${piace(c)}% degli esami obbligatori</div>` : '';
   const riga = c => rigaCorso(c, quota(c) + (esameIn && esameIn.has(c.i) ? `<div class="esami-trovati">${esc(esameIn.get(c.i).map(titoloCorso).join(' · '))}</div>` : ''));
-  const titolo = f.classe ? `Classe ${esc(f.classe)}` : f.comune ? `Corsi a ${esc(S.comuni[f.comune]?.[0] || '')}` : f.q ? `«${esc(f.q)}»` : f.gruppo ? esc(f.gruppo) : f.tipo === 'primo' ? 'Corsi dopo il diploma' : 'Tutti i corsi';
+  const titolo = f.classe ? `Classe ${esc(f.classe)}` : f.comune ? `Corsi a ${esc(S.comuni[f.comune]?.[0] || '')}` : f.q ? `«${esc(f.q)}»` : f.gruppo ? esc(f.gruppo) : f.tipo === 'primo' ? 'Corsi dopo le superiori' : 'Tutti i corsi';
   return `
       <form class="cerca-esplora solo-telefono" role="search"><label class="campo">${ICONA_CERCA}<input id="cerca-esplora" type="search" value="${esc(f.q)}" placeholder="Cerca corso, ateneo o città" autocomplete="off" aria-label="Cerca un corso, un ateneo o una città"></label></form>
       <div class="barra-risultati">
@@ -478,11 +495,17 @@ function notaAccesso(c) {
   // hanno corsi con posti o colloquio che Universitaly dà liberi (verifica indipendente dell'11/11/2026). Dove il catalogo
   // dell'ateneo dice «programmato» lo si corregge già (costruisci-sito.py); qui lo si dice per gli altri
   const nonStatale = S.statali[c.ateneo] === false && !/distanza/i.test(c.didattica || '') && !/telematic|unitelma/i.test((S.atenei[c.ateneo] || '') + c.ateneo);
+  // (per le magistrali con in più i requisiti d'accesso, che servono comunque)
+  const requisiti = 'servono i requisiti d’accesso dell’ateneo (una laurea di un certo tipo o un minimo di crediti in certe materie) e una verifica della preparazione personale.';
   if (c.accesso === 'libero' && nonStatale)
-    return p('Così dice Universitaly, ma in alcuni atenei non statali anche i corsi indicati come liberi hanno posti limitati, un test o un colloquio: controlla il bando dell’ateneo.');
+    return p('Così dice Universitaly, ma in alcuni atenei non statali anche i corsi indicati come liberi hanno posti limitati, un test o un colloquio: controlla il bando dell’ateneo.'
+      + (c.tipo === 'magistrale' ? ` In ogni caso ${requisiti}` : test));
   if (c.accesso === 'libero' || c.accesso === 'libero con test')
-    return p(c.tipo === 'magistrale' ? 'Senza graduatoria, ma servono i requisiti d’accesso dell’ateneo (una laurea di certe classi o crediti in certi settori) e una verifica della preparazione personale.'
-      : `Senza graduatoria. Di solito c’è una verifica delle conoscenze iniziali, che non esclude nessuno: chi non la supera ha obblighi formativi aggiuntivi da recuperare nel primo anno.${test}`);
+    return p(c.tipo === 'magistrale' ? `Senza graduatoria, ma ${requisiti}`
+      : `Senza graduatoria. Di solito c’è una verifica delle conoscenze iniziali, che non esclude nessuno: chi non la supera ha obblighi formativi aggiuntivi (OFA) da recuperare, di solito nel primo anno.${test}`);
+  // «programmato» da solo non dice niente a chi viene dalle superiori: cosa vuol dire, locale o nazionale
+  if ((c.accesso || '').startsWith('programmato'))
+    return p((c.accesso === 'programmato nazionale' ? 'Posti limitati (numero chiuso), con regole uguali in tutta Italia.' : 'Posti limitati (numero chiuso), con una selezione decisa dall’ateneo.') + test);
   return c.test ? p(test.trim()) : '';
 }
 function testoAccesso(c, intero) {
@@ -498,7 +521,7 @@ function testoAccesso(c, intero) {
 function lavoroRiga(c) {
   const [lav, mag, n] = c.lavoro || [];
   if (lav == null) return '';
-  const t = c.tipo === 'triennale' && mag != null ? `${fmt(mag)}% iscritti a una magistrale, ${fmt(lav)}% lavora (anche studiando)` : `${fmt(lav)}% lavora`;
+  const t = c.tipo === 'triennale' && mag != null ? `${ilL(mag)}${fmt(mag)}% fa una magistrale, ${ilL(lav)}${fmt(lav)}% lavora (anche studiando)` : `${ilL(lav)}${fmt(lav)}% lavora`;
   return `<div class="lavoro-riga">Un anno dopo la laurea: ${t} <span class="nowrap">· ${fmt(n)} intervistati</span></div>`;
 }
 function rigaCorso(c, extra = '') {
@@ -512,13 +535,13 @@ function rigaCorso(c, extra = '') {
         ${c.classe ? `<span class="etichetta codice" title="${esc(c.nomeClasse || '')}">${esc(c.classe)}</span>` : ''}
         ${c.tipo ? `<span class="etichetta">${TIPI_BREVI[c.tipo] || esc(c.tipo)}</span>` : ''}
         ${accesso ? `<span class="etichetta${c.accesso.startsWith('programmato') ? ' avviso' : ''}">${accesso}</span>` : ''}
-        ${/Inglese/.test(c.lingua || '') ? `<span class="etichetta">${c.lingua === 'Inglese' ? 'In inglese' : esc(c.lingua)}</span>` : ''}
+        ${/Inglese/.test(c.lingua || '') ? `<span class="etichetta">${c.lingua === 'Inglese' ? 'In inglese' : esc(linguaBella(c.lingua))}</span>` : ''}
         ${/distanza/i.test(c.didattica || '') ? `<span class="etichetta">${esc(c.didattica)}</span>` : ''}
       </div>
     </div>
     <div class="lato-riga">
       ${d != null ? `<span class="distanza">${testoDistanza(d)}</span>` : ''}
-      ${c.comp ? barraComposizione(c.comp) + areaPrincipale(c.comp) : c.piano ? '<span class="senza-piano">Piano degli esami</span>' : '<span class="senza-piano">Piano non disponibile</span>'}
+      ${c.comp ? barraComposizione(c.comp) + areaPrincipale(c.comp) : c.piano ? '<span class="senza-piano">Piano disponibile</span>' : '<span class="senza-piano">Piano non disponibile</span>'}
     </div>
   </a>`;
 }
@@ -565,7 +588,7 @@ function puntoSotto(canvas, ev) {
 /* ---------------- pagina del corso ---------------- */
 function vistaCorso(i) {
   const c = S.corsi[i];
-  if (!c) return `<div class="colonna vuoto">Corso non trovato. <a href="#esplora">Torna all'elenco</a></div>`;
+  if (!c) return `<div class="colonna vuoto">Corso non trovato. <a href="#esplora">Torna all’elenco</a></div>`;
   const nelConfronto = S.confronto.includes(c.i);
   const accesso = testoAccesso(c, true);
   return `<div class="colonna">
@@ -582,9 +605,9 @@ function vistaCorso(i) {
     </div>
     <dl class="fatti">
       <div><dt>Tipo</dt><dd>${TIPI_BREVI[c.tipo] || esc(c.tipo || '—')}${durataDi(c) ? `, ${durataDi(c)} anni` : ''}</dd></div>
-      <div><dt>Classe</dt><dd><span class="codice">${esc(c.classe || '—')}</span>${c.nomeClasse ? `<div class="tenue piccolo" style="font-weight:400">${esc(c.nomeClasse)}</div>` : ''}</dd></div>
-      <div><dt>Accesso</dt><dd>${esc(accesso)}${notaAccesso(c)}${c.accesso === 'incerto' ? '<div class="tenue piccolo" style="font-weight:400">Ministero e ateneo non dicono la stessa cosa (libero o a numero programmato): vale quanto scritto sul sito del corso.</div>' : ''}</dd></div>
-      <div><dt>Lingua</dt><dd>${esc(c.lingua || '—')}</dd></div>
+      <div><dt>Classe di laurea</dt><dd><span class="codice">${esc(c.classe || '—')}</span>${c.nomeClasse ? `<div class="tenue piccolo" style="font-weight:400">${esc(c.nomeClasse)}</div>` : ''}${c.classe ? '<div class="tenue piccolo" style="font-weight:400">Stessa classe vuol dire materie di base simili e titolo con lo stesso valore legale.</div>' : ''}</dd></div>
+      <div><dt>Accesso</dt><dd>${esc(accesso)}${notaAccesso(c)}${c.accesso === 'incerto' ? '<div class="tenue piccolo" style="font-weight:400">Ministero e ateneo non dicono la stessa cosa (libero o a numero programmato, cioè con posti limitati): vale quanto scritto sul sito del corso.</div>' : ''}</dd></div>
+      <div><dt>Lingua</dt><dd>${esc(linguaBella(c.lingua) || '—')}</dd></div>
       <div><dt>Didattica</dt><dd>${esc(c.didattica || '—')}</dd></div>
     </dl>
     ${htmlRegolaAccesso(c)}
@@ -598,9 +621,11 @@ function vistaCorso(i) {
   </div>`;
 }
 function sezioneSenzaPiano(c) {
+  // il motivo (raccolta/atenei-motivi.json) è scritto senza soggetto, perché vale anche per l'elenco delle Fonti, al plurale;
+  // senza motivo scritto non si sa perché manca: lo si dice così, senza dare la colpa all'ateneo
   const m = S.motivi[c.ateneo];
   return `<section class="sezione"><h2>Piano degli esami</h2>
-    <p class="nota avviso">${m ? `Non disponibile: ${esc(m.motivo)}.` : 'Non disponibile: l’ateneo non lo pubblica nelle pagine da cui raccogliamo i piani.'} ${c.sito ? (c.sitoAteneo ? `Cercalo sul <a href="${esc(c.sito)}" target="_blank" rel="noopener">sito dell’ateneo</a>.` : `Lo trovi sul <a href="${esc(c.sito)}" target="_blank" rel="noopener">sito del corso</a>.`) : ''}</p>
+    <p class="nota avviso">Non disponibile: ${m ? esc(m.motivo) : 'non l’abbiamo trovato nelle pagine dell’ateneo da cui raccogliamo i piani'}. ${c.sito ? `Cercalo sul <a href="${esc(c.sito)}" target="_blank" rel="noopener">${c.sitoAteneo ? 'sito dell’ateneo' : 'sito del corso'}</a>.` : ''}</p>
   </section>`;
 }
 // altri corsi dello stesso ateneo con lo stesso nome, classe e città, che nemmeno le fonti distinguono: lo si dice
@@ -615,9 +640,9 @@ function sezioneAltrove(c) {
   const altri = S.corsi.filter(x => x.classe === c.classe && x.i !== c.i && !x.fuori);
   if (!altri.length) return '';
   altri.sort((a, b) => S.casa ? (distanzaDi(a) ?? 1e9) - (distanzaDi(b) ?? 1e9) : a.ateneoNome.localeCompare(b.ateneoNome, 'it'));
-  return `<section class="sezione altrove"><h2>Lo stesso tipo di corso altrove <small>${fmt(altri.length)} corsi della classe ${esc(c.classe)}${S.casa ? ', dal più vicino' : ''}</small></h2>
+  return `<section class="sezione altrove"><h2>Lo stesso tipo di corso altrove <small>altri ${fmt(altri.length)} corsi della classe ${esc(c.classe)}${S.casa ? ', dal più vicino' : ''}</small></h2>
     <div class="elenco">${altri.slice(0, 6).map(c => rigaCorso(c)).join('')}</div>
-    <div class="altri"><a class="btn" href="${PAGINE ? pagClasse(c.classe) : '#esplora'}" data-classe-link="${esc(c.classe)}">Vedi tutti i ${fmt(altri.length + 1)}</a></div></section>`;
+    <div class="altri"><a class="btn" href="${PAGINE ? pagClasse(c.classe) : '#esplora'}" data-classe-link="${esc(c.classe)}">Vedi tutti ${iGli(altri.length + 1)} ${fmt(altri.length + 1)}, compreso questo</a></div></section>`;
 }
 
 const statoPiano = { percorso: 0 };
@@ -628,7 +653,10 @@ async function riempiPiano(c) {
     if (!p) { box.innerHTML = sezioneSenzaPiano(c); return; }
     statoPiano.percorso = Math.min(statoPiano.percorso, p.p.length - 1);
     box.innerHTML = htmlPiano(c, p, dati.esami);
-  } catch (e) { box.innerHTML = `<p class="nota avviso">Non riesco a caricare il piano (${esc(e.message)}). Riprova tra poco.</p>`; }
+  } catch (e) {
+    box.innerHTML = `<p class="nota avviso" role="alert">Non riusciamo a caricare il piano: forse la connessione si è interrotta.
+      <button type="button" class="btn" data-azione="riprova">Riprova</button> <span class="tenue piccolo">Motivo: ${esc(e.message)}</span></p>`;
+  }
   const t = await testiDi(c.ateneo), x = t[c.piano];
   const tb = $('#testi'); if (tb && x) { tb.innerHTML = htmlTesti(x, ((await pianiDi(c.ateneo)).corsi[c.piano] || {}).f); sistemaTestiLunghi(tb); }
 }
@@ -638,11 +666,11 @@ function esameDa(v) {
   return { nome, cfu, settori: s, periodo, taf, lingua, moduli, sotto, macro: s.length ? macroDi(s.slice().sort((a, b) => (b.n || 0) - (a.n || 0))[0].k) : 'alt' };
 }
 function regolaGruppo(b) {
-  // i riquadri a parte: i crediti in sovrannumero sono facoltativi; obblighi formativi aggiuntivi e requisiti per
-  // l'iscrizione non sono facoltativi per chi li deve fare, ma non danno crediti
+  // i riquadri a parte: i crediti in sovrannumero sono facoltativi; obblighi formativi aggiuntivi (anche scritti solo «OFA»
+  // o «debito») e requisiti per l'iscrizione non sono facoltativi per chi li deve fare, ma non danno crediti
   // (titolo «Senza crediti»); test iniziali e corsi obbligatori che il regolamento mette «in sovrannumero» hanno crediti,
-  // ma fuori da quelli del titolo (Pisa, 10/11/2026)
-  if (b.x) return /fuori dai crediti del titolo/i.test(b.e || '') ? 'Fuori dai crediti del titolo' : /obblighi formativi|requisiti per/i.test(b.e || '') ? 'Senza crediti' : 'Facoltativo';
+  // ma fuori da quelli che servono per la laurea (Pisa, 10/11/2026)
+  if (b.x) return /fuori dai crediti del titolo/i.test(b.e || '') ? 'Fuori dai crediti della laurea' : /obblighi formativi|requisiti per|\bOFA\b|debito/i.test(b.e || '') ? 'Senza crediti' : 'Facoltativo';
   // percorsi alternativi (pulisci-catalogo.py): se ne sceglie uno intero, con i crediti di un percorso
   if (b.p) return `Scegli un percorso${b.c ? ` · ${fmt(b.c)} CFU` : ''}`;
   // pacchetti di esami da prendere interi (ESSE3, regole contate in blocchi)
@@ -673,8 +701,10 @@ function htmlPiano(c, p, tabella) {
   }
   const conSettore = Object.values(perSettore).reduce((a, b) => a + b, 0);
   const primiSettori = Object.entries(perSettore).sort((a, b) => b[1] - a[1]).filter(([, v]) => v / conSettore >= .05).slice(0, 6);
-  const settoriTop = conSettore >= 30 && primiSettori.length ? `<p class="settori-top"><span class="tenue">I settori con più crediti obbligatori${conSettore < .9 * totObb ? ' (fra gli esami di cui il piano dice il settore)' : ''}:</span> ${primiSettori.map(([k, v]) => `<span class="nowrap"><span class="codice" title="${esc(nomeSettore(k))}">${esc(k)}</span> ${Math.round(100 * v / conSettore)}%</span>`).join(' · ')}</p>` : '';
-  const legenda = Object.entries(quote).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<span><i style="--c:${colore(k)}"></i>${esc(nomeMacro(k))} <span class="tenue num">${Math.round(100 * v / totQ)}%</span></span>`).join('') + '<span><i class="scelta"></i>Esami a scelta</span>';
+  // per nome (il codice resta al passaggio del mouse); i codici vecchi, che non hanno un nome nella tabella, come sono
+  const settoriTop = conSettore >= 30 && primiSettori.length ? `<p class="settori-top"><span class="tenue">Le materie con più crediti obbligatori${conSettore < .9 * totObb ? ' (fra gli esami di cui il piano dice la materia)' : ''}:</span> ${primiSettori.map(([k, v]) => `${S.nomiSettori[k] ? `<span title="${esc(k)}">${esc(S.nomiSettori[k])}</span>` : `<span class="codice" title="${esc(nomeSettore(k))}">${esc(k)}</span>`}&nbsp;${Math.round(100 * v / conSettore)}%`).join(' · ')}
+    <br><span class="tenue">Il codice sotto ogni esame (per esempio <span class="codice">${esc(primiSettori[0][0])}</span>) è il suo settore scientifico: la materia, con una sigla uguale in tutta Italia.</span></p>` : '';
+  const legenda = Object.entries(quote).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<span><i style="--c:${colore(k)}"></i>${esc(nomeMacro(k))} <span class="tenue num">${100 * v / totQ < .5 ? 'meno dell’1' : Math.round(100 * v / totQ)}%</span></span>`).join('') + '<span><i class="scelta"></i>Esami a scelta</span>';
   const legendaIgnoti = '<span><i class="ignota"></i>A scelta, crediti non indicati</span>';
   // la striscia: per ogni anno gli obbligatori e i gruppi a scelta con i crediti indicati; gli esami che si possono fare
   // in qualsiasi anno in una riga a parte (dividerli fra gli anni sarebbe inventare). I gruppi di cui l'ateneo non dice
@@ -708,12 +738,13 @@ function htmlPiano(c, p, tabella) {
   const fonte = p.f || {};
   // alcune fonti pubblicano gli anni di una coorte uno alla volta: lo si dice, invece di lasciar credere che il piano finisca lì
   const ultimo = Math.max(0, ...tuttiAnni.map(a => a.anno || 0));
-  // se la coorte 2026/27 non è ancora pubblicata si mostra la più recente, e lo si dice chiaramente
-  // (o la successiva, quando l'ateneo ha già tolto il 2026/27 dal suo sito: Bolzano, pagine 2027/28)
-  const annoPiano = fonte.anno ? +String(fonte.anno).slice(0, 4) : 0, dopo = annoPiano > +ANNO_COORTE;
-  const vecchio = !annoPiano || annoPiano === +ANNO_COORTE ? ''
-    : dopo ? `<p class="nota avviso">Questo è il piano di chi si iscriverà nel ${esc(fonte.anno)}: oggi l’ateneo pubblica solo questo. Per chi si è iscritto nel 2026/27 può essere diverso.</p>`
-    : `<p class="nota avviso">Questo è il piano di chi si è iscritto nel ${esc(fonte.anno)}: l’ateneo non ha ancora pubblicato quello per chi si iscrive nel 2026/27, che può essere diverso.</p>`;
+  // se la coorte 2026/27 non l'abbiamo trovata si mostra la più recente, e lo si dice chiaramente (o la successiva, quando
+  // l'ateneo ha già tolto il 2026/27 dal suo sito: Bolzano, pagine 2027/28). Chi legge adesso dalle superiori si iscrive
+  // nel 2027/28: il suo piano può essere diverso, e lo si dice una volta (i verbi restano veri per ogni anno del piano)
+  const annoPiano = fonte.anno ? +String(fonte.anno).slice(0, 4) : 0, dopo = annoPiano > +ANNO_COORTE, annoF = esc(annoBreve(fonte.anno || ''));
+  const vecchio = !annoPiano || annoPiano === +ANNO_COORTE ? `<p class="nota">Per chi si iscrive nel ${ANNO_DOPO} il piano può cambiare: quando l’ateneo pubblica quello nuovo, lo trovi sul sito del corso.</p>`
+    : dopo ? `<p class="nota">Questo è già il piano per chi si iscrive nel ${annoF}: l’ateneo pubblica solo questo. Per chi si è iscritto prima può essere diverso.</p>`
+    : `<p class="nota avviso">Questo è il piano di chi si è iscritto nel ${annoF}: uno più recente non l’abbiamo trovato nelle pagine dell’ateneo. Per chi si è iscritto dopo, e per chi si iscrive nel ${ANNO_DOPO}, può essere diverso: controlla sul sito del corso.</p>`;
   // anni mancanti: in fondo (pubblicati uno alla volta) o in mezzo (l'anno 1 di una coorte vecchia non è più in catalogo)
   const presenti = new Set(tuttiAnni.map(a => a.anno).filter(Boolean));
   const mancanti = presenti.size && durata ? Array.from({ length: durata }, (_, k) => k + 1).filter(n => !presenti.has(n)) : [];
@@ -742,7 +773,7 @@ function htmlPiano(c, p, tabella) {
     senza[0].stima = pieno - tot;
     senza[0].forseLiberi = !tuttiAnni.some(a => a.blocchi.some(b => b.s && b !== senza[0] && (!b.esami.length || /scelta\s+(libera|dello\s+studente|autonoma)|libera\s+scelta|crediti\s+liberi|elective|free\s+choice/i.test(b.e || ''))));
   } else if (pieno && !incompleto && !(tot <= pieno && pieno <= totMax)) {
-    if (tot > pieno) conti = `I crediti elencati qui fanno ${fmt(tot)}, più dei ${fmt(pieno)} del titolo: alcune attività sono probabilmente alternative tra loro. Controlla le regole sul sito del corso.`;
+    if (tot > pieno) conti = `I crediti elencati qui fanno ${fmt(tot)}, più dei ${fmt(pieno)} che servono per la laurea: alcune attività sono probabilmente alternative tra loro. Controlla le regole sul sito del corso.`;
     else if (senzaCrediti && !stimaPossibile(senzaTutti, pieno - totMax)) conti = `I crediti indicati qui arrivano a ${fmt(totMax)} su ${fmt(pieno)}, e con gli esami a scelta qui sotto non si arriva esattamente ${pieno - totMax === 1 ? 'al credito che manca' : `ai ${fmt(pieno - totMax)} che mancano`}: una parte del piano (spesso crediti a scelta libera, seminari o altre attività) l’ateneo non la descrive qui. Controlla il regolamento del corso.`;
     else if (senzaCrediti) conti = `I crediti indicati qui arrivano a ${fmt(totMax)} su ${fmt(pieno)}: il resto si sceglie nei gruppi per cui l’ateneo non indica quanti crediti servono (li trovi nel regolamento del corso).`;
     else conti = `I crediti indicati qui arrivano a ${fmt(totMax)} su ${fmt(pieno)}: una parte del piano (spesso le attività a scelta libera) l’ateneo non la descrive qui. Controlla sul sito del corso.`;
@@ -752,12 +783,12 @@ function htmlPiano(c, p, tabella) {
       ? `<p class="nota avviso">Qui ${ultimo === 1 ? 'c’è solo il 1° anno' : `ci sono solo i primi ${ultimo} anni`}: per ora il catalogo dell’ateneo pubblica solo questi. Il piano completo è nel regolamento del corso.</p>`
       : `<p class="nota avviso">Qui manca${mancanti.length > 1 ? 'no' : ''} ${mancanti.map(n => `il ${n}° anno`).join(' e ')}: il catalogo dell’ateneo non ${mancanti.length > 1 ? 'li' : 'lo'} pubblica. Il piano completo è nel regolamento del corso.</p>`;
   return `<section class="sezione">
-    <h2>Il piano degli esami <small>${atteso ? `${atteso} <abbr title="crediti formativi universitari: un anno di studio ne vale 60">CFU</abbr> in ${durata} anni` : ''}${fonte.anno ? ` · ${annoPiano === +ANNO_COORTE ? 'per chi si iscrive nel' : dopo ? 'piano di chi si iscriverà nel' : 'piano di chi si è iscritto nel'} ${esc(String(fonte.anno).replace(/^(\d{4})\/\d{2}(\d{2})$/, '$1/$2'))}` : ''}</small></h2>
-    ${p.p.length > 1 ? `<div class="percorsi" role="group" aria-label="Curriculum">${p.p.map(([n], k) => `<button type="button" class="scelta-btn" data-percorso="${k}" aria-pressed="${k === statoPiano.percorso}">${esc(titoloCorso(n))}</button>`).join('')}</div>` : ''}
-    ${righe ? `<div class="striscia" role="img" aria-label="Crediti per anno, colorati per area disciplinare">${righe}</div><div class="legenda">${legenda}${ignoti ? legendaIgnoti : ''}</div>${settoriTop}` : ''}
+    <h2>Il piano degli esami <small>${atteso ? `${atteso} <abbr title="crediti formativi universitari: un anno di studio ne vale 60">CFU</abbr> in ${durata} anni` : ''}${fonte.anno ? ` · ${dopo ? 'piano per chi si iscrive nel' : 'piano di chi si è iscritto nel'} ${annoF}` : ''}</small></h2>
+    ${p.p.length > 1 ? `<p class="tenue piccolo">Questo corso ha ${p.p.length} percorsi (curricula): scegli quale vedere.</p><div class="percorsi" role="group" aria-label="Percorsi (curricula)">${p.p.map(([n], k) => `<button type="button" class="scelta-btn" data-percorso="${k}" aria-pressed="${k === statoPiano.percorso}">${esc(titoloCorso(n))}</button>`).join('')}</div>` : ''}
+    ${righe ? `<div class="striscia" role="img" aria-label="Crediti per anno, colorati per area di studio">${righe}</div><div class="legenda">${legenda}${ignoti ? legendaIgnoti : ''}</div>${settoriTop}` : ''}
     ${vecchio}${parziale}${conti ? `<p class="nota avviso">${conti}</p>` : ''}
     ${tuttiAnni.map(a => htmlAnno(a)).join('')}
-    <div class="fonte"><span>Fonte: ${esc(fonte.nome || '—')}${fonte.anno ? `, piano ${esc(fonte.anno)}` : ''}. ${fonte.nota ? esc(fonte.nota) : ''}</span>${fonte.url ? `<a href="${esc(fonte.url)}" target="_blank" rel="noopener">Apri la fonte<span class="vh"> (si apre in una nuova scheda)</span> ↗</a>` : ''}</div>
+    <div class="fonte"><span>Fonte: ${esc(fonte.nome || '—')}${fonte.anno ? `, piano ${annoF}` : ''}. ${fonte.nota ? esc(fonte.nota) : ''}</span>${fonte.url ? `<a href="${esc(fonte.url)}" target="_blank" rel="noopener">Apri la fonte<span class="vh"> (si apre in una nuova scheda)</span> ↗</a>` : ''}</div>
   </section>`;
 }
 function htmlAnno(a) {
@@ -765,7 +796,7 @@ function htmlAnno(a) {
   const cfuObb = obbl.reduce((t, b) => t + b.esami.reduce((s, e) => s + (e.cfu || 0), 0), 0);
   // anche i crediti a scelta, dove l'ateneo li indica: chi somma gli obbligatori non deve credere che l'anno finisca lì
   const scelte = gruppi.filter(b => !b.x), cfuScelta = scelte.reduce((t, b) => t + (b.c || 0), 0), senzaCfu = scelte.some(b => !b.c);
-  const conti = [cfuObb ? `${fmt(Math.round(cfuObb))} CFU obbligatori` : '', cfuScelta ? `${fmt(Math.round(cfuScelta))} a scelta` : '', senzaCfu ? `${cfuScelta ? 'altri' : 'esami'} a scelta` : ''].filter(Boolean);
+  const conti = [cfuObb ? `${fmt(Math.round(cfuObb))} CFU obbligatori` : '', cfuScelta ? `${fmt(Math.round(cfuScelta))} a scelta` : '', senzaCfu ? `${cfuScelta ? 'più altri' : 'esami'} a scelta (crediti non indicati)` : ''].filter(Boolean);
   return `<div class="anno" id="anno-${a.anno != null ? a.anno : 'qualsiasi'}">
     <h3>${a.anno != null ? `${a.anno}° anno` : 'In qualsiasi anno'}<span>${a.coorte && String(a.coorte) !== ANNO_COORTE ? `come per gli iscritti nel ${esc(a.coorte)}/${String(+a.coorte + 1).slice(2)} · ` : ''}${conti.join(' · ')}</span></h3>
     ${obbl.length ? `<ul class="esami">${obbl.flatMap(b => b.esami).map(htmlEsame).join('')}</ul>` : ''}
@@ -773,11 +804,11 @@ function htmlAnno(a) {
       <div class="regola"><b>${regolaGruppo(b)}</b><span class="codice tenue">${b.esami.length ? `${b.esami.length} ${b.esami.length === 1 ? 'opzione' : 'opzioni'}` : ''}</span></div>
       ${b.e ? `<div class="orig">${esc(b.e)}</div>` : ''}
       ${b.stima ? `<p class="nota">${b.forseLiberi
-        ? `L’ateneo non dice quanti crediti scegliere qui. Per arrivare ai crediti del titolo ne mancano ${fmt(b.stima)}, e il piano non ha altri crediti a scelta libera: possono essere quelli di questo gruppo, oppure crediti a scelta libera, che spesso si possono prendere anche fuori da questo elenco. Il numero esatto e le regole sono nel regolamento del corso.`
-        : `L’ateneo non dice quanti crediti scegliere qui, ma per arrivare ai crediti del titolo ne mancano ${fmt(b.stima)}: probabilmente sono quelli di questo gruppo. Il numero esatto è nel regolamento del corso.`}</p>`
+        ? `L’ateneo non dice quanti crediti scegliere qui. Per arrivare ai crediti che servono per la laurea ne mancano ${fmt(b.stima)}, e il piano non ha altri crediti a scelta libera: possono essere quelli di questo gruppo, oppure crediti a scelta libera, che spesso si possono prendere anche fuori da questo elenco. Il numero esatto e le regole sono nel regolamento del corso.`
+        : `L’ateneo non dice quanti crediti scegliere qui, ma per arrivare ai crediti che servono per la laurea ne mancano ${fmt(b.stima)}: probabilmente sono quelli di questo gruppo. Il numero esatto è nel regolamento del corso.`}</p>`
         : !b.c && !b.m && !b.x && !b.k ? '<p class="nota">Qui l’ateneo non indica quanti crediti scegliere: controlla il regolamento del corso.</p>' : ''}
       ${(b.n || []).map(n => `<p class="nota">${esc(n)}</p>`).join('')}
-      ${b.esami.length ? opzioniGruppo(b.esami) : `<p class="nota">${!NON_LIBERA_RX.test(b.e || '') && !(b.n || []).some(n => /elenc|regol|guida/i.test(n)) ? 'Le opzioni non sono elencate: di solito si sceglie tra tutti gli esami dell’ateneo.' : 'Le opzioni non sono elencate qui: tra quali esami scegliere lo dice la fonte del piano.'}</p>`}
+      ${b.esami.length ? opzioniGruppo(b.esami) : (b.n || []).some(n => /non (sono )?elencat|non elenca/i.test(n)) ? '' : `<p class="nota">${!NON_LIBERA_RX.test(b.e || '') && !(b.n || []).some(n => /elenc|regol|guida/i.test(n)) ? 'Le opzioni non sono elencate: di solito si sceglie tra tutti gli esami dell’ateneo.' : 'Le opzioni non sono elencate qui: tra quali esami scegliere lo dice la fonte del piano.'}</p>`}
     </div>`).join('')}
   </div>`;
 }
@@ -831,17 +862,18 @@ function testoLungo(testo, classe = '') {
   const id = `testo-${++nTesti}`;
   return `<div class="testo-lungo chiuso ${classe}" id="${id}">${esc(testo)}</div><button type="button" class="btn leggi-tutto" data-azione="apri-testo" data-testo="${id}" aria-expanded="false" aria-controls="${id}">Leggi tutto</button>`;
 }
-// un gruppo senza opzioni elencate: «di solito si sceglie tra tutti gli esami dell'ateneo» solo se nulla dice il contrario.
+// un gruppo senza opzioni elencate: niente frase se una nota lo dice già («non sono elencati qui», «la fonte non elenca»);
+// «di solito si sceglie tra tutti gli esami dell'ateneo» solo se nulla dice il contrario.
 // Non lo si dice per gruppi di affini, caratterizzanti, competenze, lingue, altre attività, né quando le note rimandano a
 // elenchi o regole (Bocconi, «4 elective courses»: elenchi chiusi nella Guida; verifica indipendente dell'11/11/2026)
 const NON_LIBERA_RX = /affin|caratterizz|\bADO\b|competenz|linguistic|altre attivit|seminar|laborator|tirocin/i;
 function htmlTesti(x, f) {
-  const anno = f && f.anno ? ` ${esc(String(f.anno).replace(/^(\d{4})\/\d{2}(\d{2})$/, '$1/$2'))}` : '';
+  const anno = f && f.anno ? ` ${esc(annoBreve(f.anno))}` : '';
   const dove = f && f.url ? `<a href="${esc(f.url)}" target="_blank" rel="noopener">${x.es ? 'Continua a leggere nel catalogo dell’ateneo' : 'Vedi la scheda nel catalogo dell’ateneo'}</a>` : '';
   const fonte = `<p class="fonte-testo">${x.es ? `Qui c’è solo l’inizio del testo che l’ateneo ha scritto nella scheda ufficiale del corso${anno}.` : `Testo dell’ateneo, dalla scheda ufficiale del corso${anno}, riportato così com’è.`} ${dove}</p>`;
   return `${x.ob ? `<section class="sezione"><h2>Cosa si studia</h2>${testoLungo(x.ob)}${fonte}</section>` : ''}
     ${x.rq ? `<section class="sezione"><h2>Come si entra</h2>${testoLungo(x.rq)}${fonte}</section>` : ''}
-    ${x.sb ? `<section class="sezione"><h2>Dopo la laurea</h2><div class="profili">${x.sb.map(([prof, funz, comp, sbo]) => { const titolo = titoloCorso((prof || '').split('\n')[0]); return `<div class="profilo"><h3>${esc(titolo.length > 160 ? titolo.slice(0, 160).replace(/\s+\S*$/, '') + '…' : titolo)}</h3>${sbo || funz ? testoLungo(sbo || funz, 'in-profilo') : ''}</div>`; }).join('')}</div>
+    ${x.sb ? `<section class="sezione"><h2>A che lavoro prepara</h2><div class="profili">${x.sb.map(([prof, funz, comp, sbo]) => { const titolo = titoloCorso((prof || '').split('\n')[0]); return `<div class="profilo"><h3>${esc(titolo.length > 160 ? titolo.slice(0, 160).replace(/\s+\S*$/, '') + '…' : titolo)}</h3>${sbo || funz ? testoLungo(sbo || funz, 'in-profilo') : ''}</div>`; }).join('')}</div>
       ${x.pr ? `<h3 style="margin-top:20px;margin-bottom:10px">Professioni (classificazione ISTAT)</h3><div class="mestieri">${x.pr.map(p => `<span class="etichetta">${esc(p)}</span>`).join('')}</div>` : ''}${fonte}</section>` : ''}`;
 }
 // «Leggi tutto» solo dove il testo è davvero più lungo del riquadro chiuso
@@ -864,10 +896,10 @@ const listaDopo = c => ((S.dopo[c.ateneo] || {})[c.i] || []).map(([j, v, curr, n
 const AFFINE = .6;  // da qui in su una magistrale si dice affine (raccolta/magistrali.py, MINIMO)
 const NOTA_DOPO = 'In ordine di affinità: quanto i loro esami somigliano a quelli di questo corso, per materia.';
 // chi legge l'elenco come «le magistrali a cui posso iscrivermi» sbaglia (segnalato da un utente): lo si dice in evidenza
-const AVVISO_REQUISITI = '<p class="nota avviso avviso-requisiti"><b>Non è l’elenco delle magistrali a cui puoi iscriverti.</b> Sono le più vicine per contenuti. Ogni magistrale ha i suoi requisiti d’accesso, decisi dall’ateneo: di solito una laurea di certe classi o un numero minimo di crediti in certi settori, a volte una prova. Se te ne mancano, spesso si possono recuperare con esami singoli prima di iscriverti. Li trovi nella pagina della magistrale, alla voce «Come si entra», e nel bando dell’ateneo.</p>';
+const AVVISO_REQUISITI = '<p class="nota avviso avviso-requisiti"><b>Non è l’elenco delle magistrali a cui puoi iscriverti.</b> Sono le più vicine per contenuti. Ogni magistrale ha i suoi requisiti d’accesso, decisi dall’ateneo: di solito una laurea di un certo tipo (classe) o un minimo di crediti in certe materie, a volte una prova. Se te ne mancano, spesso puoi recuperarli iscrivendoti a singoli corsi prima della magistrale. I requisiti sono nella pagina della magistrale, alla voce «Come si entra», e nel bando dell’ateneo.</p>';
 function rigaDopo(x, stessoAteneo) {
   const nuovi = x.nuovi.map(a => AMBITI_BREVI[a]).filter(Boolean);
-  const extra = (x.curr ? `<div class="sotto-riga">Curriculum più affine: ${esc(titoloCorso(x.curr))}</div>` : '')
+  const extra = (x.curr ? `<div class="sotto-riga">Percorso (curriculum) più affine: ${esc(titoloCorso(x.curr))}</div>` : '')
     + (nuovi.length ? `<div class="sotto-riga">Materie nuove rispetto alla triennale: ${esc(elenco(nuovi))}</div>` : '')
     + (stessoAteneo ? '<div class="sotto-riga">Nello stesso ateneo</div>' : '');
   return rigaCorso(x.c, extra);
@@ -938,11 +970,12 @@ function sezioneLaureati(n, c) {
     : 'Questo ateneo non aderisce ad AlmaLaurea, che raccoglie i numeri sui laureati: per questo corso non ci sono.'}</p></section>`;
   const [pc, ateneo, tipo, tutteLeSedi, nomeAL] = n.al, v = n.v, A = n.anni;
   const magistrale = c.tipo !== 'triennale';
-  const lunga = ['più lunga', 'più breve'], lungo = ['più lungo', 'più breve'];
-  const fuori = v.fuori1 != null && v.fuori2 != null ? `Fuori corso di un anno: ${percento(v.fuori1)}; di due o più: ${percento(v.fuori2)}` : '';
+  // le parole del confronto con la classe concordano con il numero: «anni» e «mesi» non sono «più lunghi», la durata sì
+  const lunga = ['durata più lunga', 'durata più breve'], lungo = ['tempo più lungo', 'tempo più breve'];
+  const fuori = v.fuori1 != null && v.fuori2 != null ? `Con un anno di ritardo: ${percento(v.fuori1)}; con due o più: ${percento(v.fuori2)}` : '';
   const studi = bloccoCifre(`Durante gli studi <small>laureati del ${A.profilo}</small>`, [
-    cifraCorso(n, 'inCorso', 'si sono laureati in corso', percento, undefined, fuori),
-    cifraCorso(n, 'durata', `anni in media per laurearsi${c.tipo === 'magistrale' ? ' (la magistrale)' : ''}`, decimale, lunga),
+    cifraCorso(n, 'inCorso', `si sono laureati nei tempi previsti${durataDi(c) ? ` (${durataDi(c)} anni)` : ''}`, percento, undefined, fuori),
+    cifraCorso(n, 'durata', c.tipo === 'magistrale' ? 'anni in media per finire la magistrale' : 'anni in media per laurearsi', decimale, lunga),
     cifraCorso(n, 'esami', 'media dei voti agli esami, su 30', decimale),
     cifraCorso(n, 'voto', 'voto medio di laurea, su 110 (la lode conta 113)', decimale),
     cifraCorso(n, 'frequenza', 'hanno seguito più di tre quarti delle lezioni', percento),
@@ -970,18 +1003,18 @@ function sezioneLaureati(n, c) {
       ['occupati', 'Lavorano', percento],
       ['stipendio', 'Stipendio netto al mese', inEuro],
       ['indeterminato', 'Con un contratto a tempo indeterminato', percento],
-      ['efficace', 'Trovano la laurea efficace nel lavoro', percento],
+      ['efficace', 'Dicono che la laurea è utile nel loro lavoro', percento],
       ['lavoroEstero', 'Lavorano all’estero', percento],
       ['mesi', 'Mesi per trovare il primo lavoro', decimale, lungo],
     ];
     const anni = [1, 3, 5].filter(a => righe.some(([k]) => v[k + a] != null));
     const usate = righe.filter(([k]) => anni.some(a => v[k + a] != null));
-    if (anni.length) dopo = `<h3 class="titolo-laureati">Dopo la laurea</h3>
+    if (anni.length) dopo = `<h3 class="titolo-laureati">Il lavoro dopo la laurea</h3>
       <div class="tabella-scorre"><table class="dopo-laurea">
         <thead><tr><th scope="col"></th>${anni.map(a => `<th scope="col">${a === 1 ? 'Un anno' : a === 3 ? 'Tre anni' : 'Cinque anni'} dopo<small>laureati del ${A[a]}</small></th>`).join('')}</tr></thead>
         <tbody>${usate.map(([k, nome, forma, parole]) => `<tr><th scope="row">${nome}</th>${anni.map(a => `<td>${v[k + a] == null ? '<span class="tenue">—</span>' : `<b>${forma(v[k + a])}</b>${confrontoClasse(n, k + a, forma, parole)}`}</td>`).join('')}</tr>`).join('')}</tbody>
       </table></div>
-      <p class="nota">${NOTA_LAVORO} Stipendio, contratto, efficacia ed estero sono di chi lavora; i mesi per il primo lavoro sono di chi non ha continuato un lavoro che aveva già prima della laurea. Un trattino vuol dire troppe poche risposte (meno di ${MIN_RISPOSTE}).</p>`;
+      <p class="nota">${NOTA_LAVORO} Stipendio, contratto, utilità della laurea ed estero sono di chi lavora; i mesi per il primo lavoro sono di chi non ha continuato un lavoro che aveva già prima della laurea. Un trattino vuol dire troppe poche risposte (meno di ${MIN_RISPOSTE}).</p>`;
   }
   const parti = studi + giudizio + dopo;
   const fonti = [v.questionari != null ? `${fmt(v.questionari)} questionari su ${fmt(v.laureati)} laureati del ${A.profilo}` : '',
@@ -989,11 +1022,11 @@ function sezioneLaureati(n, c) {
     magistrale && v.intervistati3 != null ? `${fmt(v.intervistati3)} a tre anni` : '', magistrale && v.intervistati5 != null ? `${fmt(v.intervistati5)} a cinque anni` : ''].filter(Boolean);
   const link = (testo, config, a) => `<a href="${esc(schedaAlmaLaurea(pc, ateneo, tipo, config, a))}" target="_blank" rel="noopener">${testo}</a>`;
   return `<section class="sezione laureati"><h2>Com’è andata a chi si è laureato</h2>
-    ${parti ? `<p class="nota" style="margin:-6px 0 4px">Sotto ogni numero: lo stesso numero per tutti i laureati della classe ${esc(c.classe || '')} negli atenei di AlmaLaurea, e dove sta questo corso tra quelli della stessa classe.</p>${parti}`
+    ${parti ? `<p class="nota" style="margin:-6px 0 4px">Sotto ogni numero trovi, per confronto, lo stesso numero per tutti i corsi dello stesso tipo (classe ${esc(c.classe || '')}) negli atenei di AlmaLaurea, e come si piazza questo corso rispetto a loro.</p>${parti}`
       : `<p class="nota">AlmaLaurea ha troppe poche risposte su questo corso (meno di ${MIN_RISPOSTE}) per dare numeri affidabili.</p>`}
     <p class="nota">Fonte: ${link('AlmaLaurea', 'profilo')}, indagine 2025${fonti.length ? ` (${esc(elencoSemplice(fonti))})` : ''}.
       ${nomeAL ? `Nelle schede di AlmaLaurea il corso si chiama «${esc(nomeAL)}». ` : ''}${tutteLeSedi ? 'Sono i numeri di tutte le sedi del corso: AlmaLaurea non le distingue. ' : ''}
-      Dicono com’è andata a chi si è laureato, non a chi ha lasciato, e dipendono anche da chi si iscrive: un corso che seleziona all’ingresso ha più laureati in corso. <a href="#fonti">Come leggerli</a>.
+      Dicono com’è andata a chi si è laureato, non a chi ha lasciato, e dipendono anche da chi si iscrive: un corso che seleziona all’ingresso ha di solito più laureati nei tempi previsti. <a href="#fonti">Come leggerli</a>.
       Schede complete: ${link('profilo dei laureati', 'profilo')} · ${link('lavoro a un anno', 'occupazione', 1)}${magistrale ? ` · ${link('a tre anni', 'occupazione', 3)} · ${link('a cinque anni', 'occupazione', 5)}` : ''}.</p>
   </section>`;
 }
@@ -1015,7 +1048,7 @@ async function riempiDopo(c) {
 const statoDopo = { i: null, ordine: 'affini', regione: '', mostrati: 30 };
 function vistaDopo(i) {
   const c = S.corsi[i];
-  if (!c || c.tipo !== 'triennale') return `<div class="colonna vuoto">Corso non trovato. <a href="#esplora">Torna all'elenco</a></div>`;
+  if (!c || c.tipo !== 'triennale') return `<div class="colonna vuoto">Corso non trovato. <a href="#esplora">Torna all’elenco</a></div>`;
   if (statoDopo.i !== i) Object.assign(statoDopo, { i, ordine: 'affini', regione: '', mostrati: 30 });
   if (!(c.ateneo in S.dopo)) return '<div class="colonna"><p class="caricamento">Carico le magistrali…</p></div>';
   const tutte = listaDopo(c);
@@ -1032,7 +1065,7 @@ function vistaDopo(i) {
         <select id="ordine-dopo" aria-label="Ordina" style="width:auto"><option value="affini" ${statoDopo.ordine === 'affini' ? 'selected' : ''}>Più affini</option><option value="distanza" ${statoDopo.ordine === 'distanza' ? 'selected' : ''} ${S.casa ? '' : 'disabled'}>Più vicine${S.casa ? '' : ' (scegli da dove parti)'}</option></select>
       </div>
     </div>
-    ${AVVISO_REQUISITI}<p class="nota" style="max-width:70ch;margin:0 0 14px">${NOTA_DOPO} Le affinità vengono dai settori scientifici degli esami obbligatori e a scelta dei piani ${ANNO_ACCADEMICO}; per le magistrali con più curricula conta il più affine.</p>
+    ${AVVISO_REQUISITI}<p class="nota" style="max-width:70ch;margin:0 0 14px">${NOTA_DOPO} Le affinità vengono dalle materie (settori scientifici) degli esami obbligatori e a scelta dei piani raccolti, quasi tutti del ${ANNO_ACCADEMICO}; per le magistrali con più percorsi (curricula) conta il più affine.</p>
     <div style="margin-bottom:14px">${campoCasa()}</div>
     <p class="tenue piccolo num" role="status">${fmt(r.length)} magistrali${statoDopo.regione ? ` in ${esc(statoDopo.regione)}` : ''}</p>
     ${r.length ? `<div class="elenco">${r.slice(0, statoDopo.mostrati).map(x => rigaDopo(x, x.c.ateneo === c.ateneo)).join('')}</div>${r.length > statoDopo.mostrati ? `<div class="altri"><button type="button" class="btn" data-azione="altri-dopo">Mostra altre ${fmt(Math.min(30, r.length - statoDopo.mostrati))}</button></div>` : ''}`
@@ -1045,8 +1078,8 @@ const statoMaterie = { q: '', scelta: null };
 function vistaMaterie() {
   return `<div class="colonna">
     <h1>Dove si studia una materia</h1>
-    <p class="tenue" style="margin:8px 0 18px;max-width:60ch">Scrivi il nome di un esame: trovi i corsi che lo hanno nel piano degli studi, tra i ${fmt(S.corsi.filter(c => c.piano).length)} di cui abbiamo il piano.</p>
-    <form class="cerca-materia" id="form-materia" role="search"><input id="cerca-materia" type="search" placeholder="Per esempio: intelligenza artificiale, diritto tributario, anatomia" value="${esc(statoMaterie.q)}" autocomplete="off" aria-label="Nome dell'esame"></form>
+    <p class="tenue" style="margin:8px 0 18px;max-width:60ch">Scrivi il nome di un esame: trovi i corsi che lo hanno nel piano degli esami, tra ${iGli(S.corsi.filter(c => c.piano).length)} ${fmt(S.corsi.filter(c => c.piano).length)} di cui abbiamo il piano.</p>
+    <form class="cerca-materia" id="form-materia" role="search"><input id="cerca-materia" type="search" placeholder="Per esempio: intelligenza artificiale, diritto tributario, anatomia" value="${esc(statoMaterie.q)}" autocomplete="off" aria-label="Nome dell’esame"></form>
     <div id="risultati-materia">${S.esami ? risultatiMaterie() : statoMaterie.q ? '<p class="caricamento">Carico l’indice degli esami…</p>' : ''}</div>
   </div>`;
 }
@@ -1060,7 +1093,7 @@ function risultatiMaterie() {
   const corsi = [...new Set(sel.flatMap(k => E.corsi[k]))].map(i => S.corsi[i]).filter(Boolean);
   corsi.sort((a, b) => S.casa ? (distanzaDi(a) ?? 1e9) - (distanzaDi(b) ?? 1e9) : a.nome.localeCompare(b.nome, 'it'));
   return `<div class="materie-trovate">
-    <div><p class="tenue piccolo" style="margin-bottom:8px">${fmt(trovati.length)} nomi d'esame${trovati.length > 40 ? ', i 40 più diffusi' : ''}</p>
+    <div><p class="tenue piccolo" style="margin-bottom:8px">${fmt(trovati.length)} nomi d’esame${trovati.length > 40 ? ', i 40 più diffusi' : ''}</p>
       <div class="nomi-materia">${trovati.slice(0, 40).map(k => `<button type="button" data-materia="${k}" aria-pressed="${statoMaterie.scelta === k}">${esc(titoloCorso(E.nomi[k]))}<span>${fmt(E.corsi[k].length)}</span></button>`).join('')}</div></div>
     <div><p class="tenue piccolo" style="margin-bottom:8px">${fmt(corsi.length)} corsi${statoMaterie.scelta != null ? ` con «${esc(titoloCorso(E.nomi[statoMaterie.scelta]))}»` : ''}${S.casa ? ', dal più vicino' : ''}</p>
       <div class="elenco">${corsi.slice(0, 80).map(c => rigaCorso(c)).join('')}</div></div>
@@ -1081,7 +1114,7 @@ function vistaConfronta() {
     ['Classe', c => `<span class="codice">${esc(c.classe || '—')}</span>`],
     ['Tipo', c => `${TIPI_BREVI[c.tipo] || '—'}`],
     ['Accesso', c => esc(c.accesso === 'incerto' ? 'Da controllare sul sito del corso' : testoAccesso(c, true))],
-    ['Lingua', c => esc(c.lingua || '—')],
+    ['Lingua', c => esc(linguaBella(c.lingua) || '—')],
     ...righeNumeri(corsi),
     ['Di cosa è fatto', c => c.comp ? `<div class="barre-area">${c.comp.split('.').map(p => [p.slice(0, 3), +p.slice(3)]).map(([k, v]) => `<div><span><span class="b" style="--c:${colore(k)};width:${v}%;display:block"></span><span class="tenue">${esc(nomeMacro(k))}</span></span><span class="num">${v}%</span></div>`).join('')}</div>` : '<span class="tenue">Non disponibile</span>'],
   ];
@@ -1090,7 +1123,7 @@ function vistaConfronta() {
       <thead><tr><th scope="col"><span class="tenue piccolo">${corsi.length} di 3</span></th>${corsi.map(c => `<th scope="col"><a href="#corso.${c.i}">${esc(nomeIntero(c))}</a><div style="margin-top:8px"><button type="button" class="btn" data-azione="confronto" data-i="${c.i}">Togli</button></div></th>`).join('')}</tr></thead>
       <tbody>${righe.map(([n, f]) => `<tr><th scope="row">${n}</th>${corsi.map(c => `<td>${f(c)}</td>`).join('')}</tr>`).join('')}</tbody>
     </table></div>
-    <p class="tenue piccolo" style="margin-top:12px">Iscritti: Ministero dell’Università, 2025/26. Numeri dei laureati: AlmaLaurea, indagine 2025, con sotto quelli di tutta la classe di laurea; dettagli e fonti nella pagina di ogni corso. «Di cosa è fatto» somma i crediti degli esami obbligatori per area disciplinare, dai settori scientifici indicati nel piano.</p>
+    <p class="tenue piccolo" style="margin-top:12px">Iscritti: Ministero dell’Università, 2025/26. Numeri dei laureati: AlmaLaurea, indagine 2025, con sotto quelli di tutta la classe di laurea; dettagli e fonti nella pagina di ogni corso. «Di cosa è fatto» somma i crediti degli esami obbligatori per area di studio, dalle materie (settori scientifici) indicate nel piano.${corsi.some(c => c.tipo === 'triennale') ? ' Dopo una triennale la maggior parte continua con una magistrale: per le triennali leggi insieme «Lavorano un anno dopo la laurea» e «Iscritti a una magistrale un anno dopo».' : ''}</p>
     ${corsi.length >= 2 ? sezioneTrasferimento(corsi) : ''}</div>`;
 }
 
@@ -1110,7 +1143,7 @@ function sezioneTrasferimento(corsi) {
   const da = S.corsi[statoTrasf.da], a = S.corsi[statoTrasf.a];
   const scelta = (id, val, lista) => `<select id="${id}">${lista.map(c => `<option value="${c.i}" ${c.i === val ? 'selected' : ''}>${esc(nomeIntero(c))} · ${esc(c.ateneoNome)}</option>`).join('')}</select>`;
   const testa = `<section class="sezione trasferimento"><h2>Se passi da un corso all’altro</h2>
-    <p class="tenue">Per ogni esame obbligatorio del corso da cui parti, gli esami del corso di arrivo dello stesso settore scientifico. Non è un riconoscimento: i crediti li riconosce la commissione del corso di arrivo, esame per esame, guardando soprattutto il settore e i crediti.</p>
+    <p class="tenue">Per ogni esame obbligatorio del corso da cui parti, gli esami del corso di arrivo della stessa materia (settore scientifico). Non è un riconoscimento: i crediti li riconosce la commissione del corso di arrivo, esame per esame, guardando soprattutto il settore e i crediti.</p>
     <div class="scelte-trasf"><label>Da ${scelta('trasf-da', da.i, conPiano)}</label><label>a ${scelta('trasf-a', a.i, arrivi)}</label></div>`;
   if (!S.piani[da.ateneo] || !S.piani[a.ateneo] || !S.mag) {
     Promise.all([pianiDi(da.ateneo), pianiDi(a.ateneo), caricaMagistrali()]).then(() => { if (rotta().nome === 'confronta') disegna(false); }).catch(mostraErrore);
@@ -1142,7 +1175,7 @@ function sezioneTrasferimento(corsi) {
   return testa + `
     <p><b>${tot ? `${fmt(Math.round(100 * inComune / tot))}%` : '—'}</b> dei crediti obbligatori di ${esc(nomeIntero(da))} (${esc(da.ateneoNome)}) sono in settori che ci sono anche nel piano di ${esc(nomeIntero(a))} (${esc(a.ateneoNome)}): ${fmt(Math.round(inComune))} CFU su ${fmt(Math.round(tot))}${A.esami.length > conSettore.length ? `, senza contare ${A.esami.length - conSettore.length} esami di cui il piano non dice il settore` : ''}.</p>
     ${stessaClasse ? `<p class="nota">I due corsi sono della stessa classe (${esc(da.classe)}): in questo caso la legge chiede che almeno metà dei crediti già ottenuti in ciascun settore sia riconosciuta direttamente (per le lauree, DM 16 marzo 2007, art. 3, comma 9; se il corso di partenza è a distanza, solo se è accreditato).</p>` : ''}
-    ${A.curricula > 1 || B.curricula > 1 ? `<p class="tenue piccolo">Per i corsi con più curricula si usa il primo (${esc(titoloCorso(A.nome))}; ${esc(titoloCorso(B.nome))}).</p>` : ''}
+    ${A.curricula > 1 || B.curricula > 1 ? `<p class="tenue piccolo">Per i corsi con più percorsi (curricula) si usa il primo (${esc(titoloCorso(A.nome))}; ${esc(titoloCorso(B.nome))}).</p>` : ''}
     <div class="tabella-scorre"><table class="confronto trasf"><thead><tr><th scope="col">Esame obbligatorio di partenza</th><th scope="col">CFU</th><th scope="col">Esami dello stesso settore nel corso di arrivo</th></tr></thead>
     <tbody>${A.esami.map(riga).join('')}</tbody></table></div></section>`;
 }
@@ -1171,7 +1204,7 @@ function righeNumeri(corsi) {
   const solo = (tipo, f) => c => (tipo === 'triennale') === (c.tipo === 'triennale') ? f(c) : vuoto('—');
   const righe = [
     ['Iscritti', c => { const m = di(c).mur; return m ? `${m.circa ? 'circa ' : ''}${fmt(m.iscritti)}` : vuoto('Non disponibile'); }],
-    ['Laureati in corso', cella('inCorso', percento)],
+    ['Laureati nei tempi previsti', cella('inCorso', percento)],
     ['Media degli esami', cella('esami', decimale)],
     ['Rifarebbero lo stesso corso', cella('rifarebbero', percento)],
     ['Lavorano un anno dopo la laurea', cella('occupati1', percento)],
@@ -1186,11 +1219,16 @@ function righeNumeri(corsi) {
 
 /* ---------------- fonti e note ---------------- */
 const MESI = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre'];
-function dataLunga(iso) { const [a, m, g] = String(iso).split('-').map(Number); return a ? `${g} ${MESI[m - 1]} ${a}` : ''; }
+function dataLunga(iso) { const [a, m, g] = String(iso).split('-').map(Number); return a ? `${g === 1 ? '1º' : g} ${MESI[m - 1]} ${a}` : ''; }
+// la data con la sua preposizione: davanti a 8 e 11 si elide («all’11 novembre», «l’8 marzo»), davanti agli altri no
+function conArticolo(iso, art, eliso) { const g = +String(iso).split('-')[2], d = dataLunga(iso); return d ? (g === 8 || g === 11 ? eliso : art + ' ') + d : ''; }
 function vistaFonti() {
   const attivi = S.corsi.filter(c => !c.fuori), conPiano = attivi.filter(c => c.piano);
   // per gli atenei con piani solo per una parte dei corsi contano i corsi rimasti senza
   const senza = Object.entries(S.motivi).map(([k, m]) => ({ nome: S.atenei[k] || k, motivo: m.motivo, n: attivi.filter(c => c.ateneo === k && !c.piano).length, tot: attivi.filter(c => c.ateneo === k).length })).filter(x => x.n).sort((a, b) => b.n - a.n);
+  // e quelli degli atenei senza un motivo scritto: non si sa perché manca, si dice solo che non l'abbiamo trovato
+  const altriSenza = attivi.filter(c => !c.piano && !S.motivi[c.ateneo]), atAltri = new Set(altriSenza.map(c => c.ateneo)).size;
+  const corsi = n => `${fmt(n)} ${n === 1 ? 'corso' : 'corsi'}`;
   return `<div class="colonna testo-pagina">
     <h1>Fonti e note</h1>
     <p class="sotto">${NOME} raccoglie in un posto solo i corsi di laurea italiani e i loro piani degli esami, presi dalle pagine ufficiali degli atenei. È un aiuto per orientarsi: per iscriverti vale sempre quello che scrive l’ateneo.</p>
@@ -1200,24 +1238,24 @@ function vistaFonti() {
       <li><b>Area di studio e sede</b>: open data del Ministero dell’Università (USTAT), elenco dei corsi 2025/26.</li>
       <li><b>Piani degli esami</b> (${fmt(conPiano.length)} corsi): cataloghi dei corsi e siti ufficiali degli atenei. Ogni piano dice da quale fonte viene e di quale anno è, con il collegamento per controllarlo.</li>
       <li><b>Cosa si studia, come si entra, cosa si fa dopo</b>: i testi che ogni ateneo scrive nella scheda ufficiale del corso, presi dal suo catalogo. Per gli atenei statali li riportiamo per intero e così come sono; per quelli non statali solo l’inizio, con il collegamento al resto. Sotto ogni testo c’è la fonte.</li>
-      <li><b>Iscritti e laureati di ogni corso</b>: open data del Ministero dell’Università (<a href="https://dati-ustat.mur.gov.it/" target="_blank" rel="noopener">USTAT</a>, licenza IODL 2.0): iscritti per corso dal 2016/17 al 2025/26 (l’ultimo anno è provvisorio) e laureati del 2025. Mancano le università telematiche e i gruppi con meno di 6 persone.</li>
+      <li><b>Iscritti e laureati di ogni corso</b>: open data del Ministero dell’Università (<a href="https://dati-ustat.mur.gov.it/" target="_blank" rel="noopener">USTAT</a>, licenza IODL 2.0): iscritti per corso dal 2016/17 al 2025/26 (l’ultimo anno è provvisorio) e laureati del 2025. Quando un gruppo (per esempio le iscritte donne) ha meno di 6 persone, il Ministero non lo pubblica: in quel caso il numero è approssimato.</li>
       <li><b>Com’è andata ai laureati</b> (regolarità, voti, soddisfazione, lavoro e stipendio a uno, tre e cinque anni): <a href="https://www.almalaurea.it/" target="_blank" rel="noopener">AlmaLaurea</a>, indagine 2025 sul profilo e sulla condizione occupazionale dei laureati, schede pubbliche dei singoli corsi e delle classi di laurea. Ci sono solo gli atenei che aderiscono ad AlmaLaurea: non, per esempio, Bocconi, Politecnico di Milano, Cattolica, Luiss e quasi tutte le telematiche.</li>
       <li><b>Comuni e distanze</b>: GeoNames (licenza CC BY 4.0). Le distanze sono in linea d’aria.</li>
     </ul>
     <h2>Come leggere un piano</h2>
     <ul>
       <li>I crediti (CFU) misurano il lavoro di ogni esame: un anno di studio ne vale 60, quindi una triennale 180 e una magistrale 120.</li>
-      <li>Il piano mostrato è quello di chi si iscrive nel 2026/27. Se l’ateneo non l’ha ancora pubblicato, si vede quello dell’anno prima, e la pagina del corso lo dice.</li>
-      <li>Alcuni atenei pubblicano gli anni di una coorte uno alla volta: in quel caso la pagina dice quali anni mancano.</li>
+      <li>Il piano mostrato è quello di chi si è iscritto nel ${ANNO_ACCADEMICO}. Dove non l’abbiamo trovato mostriamo il più recente che c’è (di solito quello dell’anno prima, a volte uno più vecchio o già quello del ${ANNO_DOPO}), e la pagina del corso dice di quale anno è. Per chi si iscrive nel ${ANNO_DOPO} il piano può cambiare: prima di iscriverti controllalo sul sito del corso.</li>
+      <li>Alcuni atenei pubblicano il piano un anno alla volta (prima il 1° anno, l’anno dopo il 2°…): in quel caso la pagina dice quali anni mancano.</li>
       <li>Nei gruppi a scelta, quando il catalogo dell’ateneo non dice quanti crediti scegliere, lo scriviamo invece di indovinarlo: il numero esatto è nel regolamento del corso.</li>
-      <li>Se i crediti mostrati non fanno quelli del titolo (180, 120, 300 o 360), la pagina del corso lo segnala.</li>
+      <li>Se i crediti mostrati non fanno quelli che servono per la laurea (180, 120, 300 o 360), la pagina del corso lo segnala.</li>
       <li>A volte il catalogo online di un ateneo non coincide con il regolamento del corso (un esame con crediti diversi, un gruppo a scelta descritto in un altro modo). Riportiamo il catalogo così com’è: in caso di dubbio vale il regolamento.</li>
     </ul>
-    ${senza.length ? `<h2>Corsi senza piano degli esami</h2><ul>${senza.map(x => `<li><b>${esc(x.nome)}</b> (${x.n === x.tot ? `${fmt(x.n)} corsi` : `${fmt(x.n)} corsi su ${fmt(x.tot)}`}): ${esc(x.motivo)}.</li>`).join('')}</ul>` : ''}
+    ${senza.length || altriSenza.length ? `<h2>Corsi senza piano degli esami</h2><ul>${senza.map(x => `<li><b>${esc(x.nome)}</b> (${x.n === x.tot ? corsi(x.n) : `${corsi(x.n)} su ${fmt(x.tot)}`}): ${esc(x.motivo)}.</li>`).join('')}${altriSenza.length ? `<li><b>Altri ${corsi(altriSenza.length)}</b> di ${fmt(atAltri)} ${atAltri === 1 ? 'ateneo' : 'atenei'}: piano non trovato nelle pagine dell’ateneo da cui raccogliamo i piani.</li>` : ''}</ul>` : ''}
     <h2>Dopo la triennale: le magistrali affini</h2>
     <ul>
       <li>Nella pagina di ogni triennale ci sono le magistrali più affini: quelle i cui esami somigliano di più a quelli del corso, confrontando i settori scientifici degli esami obbligatori e a scelta. Per una magistrale con più curricula conta il più affine.</li>
-      <li>L’affinità non dice se puoi iscriverti. I requisiti d’accesso (crediti in certi settori, voto, colloquio) li decide ogni ateneo e sono nella pagina della magistrale. L’unica regola che applichiamo è di legge: le magistrali delle professioni sanitarie sono per chi ha la laurea della stessa area.</li>
+      <li>L’affinità non dice se puoi iscriverti. I requisiti d’accesso (crediti in certe materie, voto, colloquio) li decide ogni ateneo e sono nella pagina della magistrale. L’unica regola che applichiamo è di legge: le magistrali delle professioni sanitarie sono per chi ha la laurea della stessa area.</li>
       <li>Abbiamo provato il calcolo con i testi dei requisiti delle magistrali che nominano le classi di laurea ammesse: una magistrale che nomina la classe della triennale sta sopra una che non la nomina in circa 9 casi su 10.</li>
       <li>Il <a href="#magistrale">quiz per la magistrale</a> usa lo stesso calcolo, con gli esami che hai segnato tu, e ci aggiunge quello che ti è piaciuto e cosa cerchi. Un limite: marketing e management stanno nello stesso settore scientifico, e il quiz non li distingue.</li>
     </ul>
@@ -1226,15 +1264,15 @@ function vistaFonti() {
       <li>Vengono dall’indagine AlmaLaurea del 2025: chi si è laureato nel 2024 ha risposto sugli studi; chi si è laureato nel 2023, nel 2021 e nel 2019 è stato intervistato a uno, tre e cinque anni dalla laurea (tre e cinque solo per magistrali e cicli unici). Regolarità, voti, durata e provenienza riguardano tutti i laureati; il resto chi ha risposto.</li>
       <li>Sotto ogni numero c’è lo stesso numero per tutti i laureati della classe di laurea negli atenei di AlmaLaurea, e la posizione del corso tra quelli della stessa classe che abbiamo trovato in AlmaLaurea: «più alto di 8 corsi su 10» vuol dire che 8 corsi su 10 della classe hanno un valore più basso. Tra 4 e 6 su 10 scriviamo «nella media». La posizione si dà solo se nella classe ci sono almeno altri 5 corsi con abbastanza risposte.</li>
       <li>Un numero che si regge su meno di 10 risposte non si mostra: con così pochi casi ballerebbe troppo da un anno all’altro.</li>
-      <li>Lavora chi ha un’attività retribuita, anche di formazione (tirocinio, dottorato con borsa), come nella definizione dell’ISTAT. Stipendio, contratto, efficacia della laurea e lavoro all’estero riguardano chi lavora. Il voto medio di laurea può superare 110 perché AlmaLaurea conta la lode come 113.</li>
-      <li>I numeri dicono com’è andata a chi si è laureato, non a chi ha lasciato il corso. E dipendono anche da chi si iscrive: un corso a numero programmato, che seleziona all’ingresso, ha di solito più laureati in corso e voti più alti.</li>
+      <li>Lavora chi ha un’attività retribuita, anche di formazione (tirocinio, dottorato con borsa), come nella definizione dell’ISTAT. Stipendio, contratto, utilità della laurea per il lavoro («efficacia», per AlmaLaurea) e lavoro all’estero riguardano chi lavora. Il voto medio di laurea può superare 110 perché AlmaLaurea conta la lode come 113.</li>
+      <li>I numeri dicono com’è andata a chi si è laureato, non a chi ha lasciato il corso. E dipendono anche da chi si iscrive: un corso a numero programmato, che seleziona all’ingresso, ha di solito più laureati nei tempi previsti (in corso) e voti più alti.</li>
       <li>Ogni corso è abbinato alla sua scheda AlmaLaurea e alla sua riga del Ministero solo quando ateneo, classe e nome coincidono (o il nome è chiaramente lo stesso corso rinominato); nel dubbio il corso resta senza numeri. Quando AlmaLaurea non distingue le sedi di un corso, la pagina lo dice.</li>
-      <li>Gli iscritti contano tutti gli anni di corso, fuori corso compresi. L’andamento rispetto al 2022/23 si mostra solo per i corsi che esistevano già nel 2016/17: un corso più giovane cresce comunque, perché si riempiono gli anni successivi al primo.</li>
+      <li>Gli iscritti contano tutti gli anni di corso, fuori corso compresi. Il confronto con il 2022/23 si mostra solo per i corsi attivi da molti anni (già nel 2016/17): in un corso nuovo gli iscritti crescono comunque, man mano che si riempiono il 2° e il 3° anno.</li>
     </ul>
     <h2>Privacy</h2>
     <p>${PAGINE ? 'Senza il tuo consenso il sito non usa cookie e non chiede niente a servizi esterni; con il consenso usa Google Analytics, solo per contare le visite. <a href="privacy.html">Tutti i dettagli</a>.' : `${NOME} non usa cookie, non traccia le visite e non chiede dati a servizi esterni.`} Il comune di partenza e i corsi messi a confronto restano salvati solo nel tuo browser, per ritrovarli la volta dopo.</p>
     <h2>Aggiornamento</h2>
-    <p>Dati raccolti il ${esc(dataLunga(S.aggiornato) || '—')}. I piani possono cambiare durante l’anno: prima di iscriverti controlla sempre sul sito del corso.</p>
+    <p>Dati raccolti ${esc(conArticolo(S.aggiornato, 'il', 'l’') || 'il —')}. I piani possono cambiare durante l’anno: prima di iscriverti controlla sempre sul sito del corso.</p>
   </div>`;
 }
 
@@ -1407,8 +1445,8 @@ function mostraErrore(e) {
     : nome === 'magistrale' ? '<button type="button" class="btn" data-m="inizia">Ricomincia il quiz</button>'
     : nome === 'profilo' ? '<a class="btn" href="#quiz">Torna al quiz</a>' : '';
   app.innerHTML = `<div class="colonna vuoto" role="alert">
-    <b>${dati ? 'Non riesco a caricare i dati.' : 'Non riesco a mostrare questa pagina.'}</b>
-    <span>${dati ? 'Forse la connessione si è interrotta: riprova tra un momento.' : `È un errore del sito, non tuo. Riprova; se si ripete, ${PAGINE ? '<a href="privacy.html">scrivici</a>' : 'scrivici'} copiando il motivo qui sotto.`}</span>
+    <b>${dati ? 'Non riusciamo a caricare i dati.' : 'Non riusciamo a mostrare questa pagina.'}</b>
+    <span>${dati ? 'Forse la connessione si è interrotta: riprova tra un momento.' : `È un errore del sito, non tuo. Riprova; se si ripete, scrivici${PAGINE ? ' (l’indirizzo è nella pagina <a href="privacy.html">Privacy</a>)' : ''} copiando il motivo qui sotto.`}</span>
     <span class="azioni-errore"><button type="button" class="btn primario" data-azione="riprova">Riprova</button>${ricomincia}</span>
     <span class="tenue piccolo">Motivo: ${esc(motivo)}</span>
   </div>`;

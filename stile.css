@@ -242,6 +242,7 @@ table.dopo-laurea { border-collapse: separate; border-spacing: 0; width: 100%; }
 .esame .settori-esame .codice { font-size: .75rem; }
 .settori-top { margin: 10px 0 0; font-size: .82rem; line-height: 1.7; }
 .settori-top .codice { font-size: .78rem; }
+.settori-top + .nota { margin-top: 12px; }
 .nowrap { white-space: nowrap; }
 .trasferimento { margin-top: 40px; }
 .scelte-trasf { display: flex; flex-wrap: wrap; gap: 10px 16px; margin: 12px 0 16px; }
@@ -603,6 +604,8 @@ i.neutro { background: var(--neutro); }
 .laurea-corsi { display: grid; gap: 8px; justify-items: start; border-top: 1px solid var(--linea); padding-top: 14px; }
 .laurea-corsi .elenco { width: 100%; border-top: 0; }
 .laurea-corsi .riga { padding: 12px 2px; }
+/* «Cerca «nome lungo della laurea» fra tutti i corsi»: sul telefono il pulsante va a capo invece di allargare la scheda */
+.laurea .btn { white-space: normal; max-width: 100%; text-align: center; }
 .laurea-corsi .riga:last-child { border-bottom: 0; }
 .fuori, .prossimi ul { padding-left: 1.2em; display: grid; gap: 8px; max-width: 70ch; margin: 0; }
 .prossimi ul { margin-bottom: 18px; }
