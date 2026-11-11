@@ -474,6 +474,12 @@ function htmlRegolaAccesso(c) {
 function notaAccesso(c) {
   const p = t => `<div class="tenue piccolo" style="font-weight:400">${t}</div>`;
   const test = c.test ? ` Per questo corso i requisiti dell’ateneo indicano il ${esc(c.test)}${/TOLC|CEnT/.test(c.test) ? ' (CISIA)' : ''}.` : '';
+  // negli atenei non statali (non telematici) «libero» viene da Universitaly e a volte non è vero: IULM, Cattolica, LUMSA
+  // hanno corsi con posti o colloquio che Universitaly dà liberi (verifica indipendente dell'11/11/2026). Dove il catalogo
+  // dell'ateneo dice «programmato» lo si corregge già (costruisci-sito.py); qui lo si dice per gli altri
+  const nonStatale = S.statali[c.ateneo] === false && !/distanza/i.test(c.didattica || '') && !/telematic|unitelma/i.test((S.atenei[c.ateneo] || '') + c.ateneo);
+  if (c.accesso === 'libero' && nonStatale)
+    return p('Così dice Universitaly, ma in alcuni atenei non statali anche i corsi indicati come liberi hanno posti limitati, un test o un colloquio: controlla il bando dell’ateneo.');
   if (c.accesso === 'libero' || c.accesso === 'libero con test')
     return p(c.tipo === 'magistrale' ? 'Senza graduatoria, ma servono i requisiti d’accesso dell’ateneo (una laurea di certe classi o crediti in certi settori) e una verifica della preparazione personale.'
       : `Senza graduatoria. Di solito c’è una verifica delle conoscenze iniziali, che non esclude nessuno: chi non la supera ha obblighi formativi aggiuntivi da recuperare nel primo anno.${test}`);
