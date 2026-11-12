@@ -50,14 +50,32 @@
     });
   }
 
-  const mostra = v => { const e = document.getElementById('consenso'); if (e) e.hidden = !v; };
+  // accessibilità del banner: la sua altezza, mentre è aperto, va in --alto-consenso (scroll-padding in stile.css), così
+  // chi usa la tastiera non porta il fuoco sotto il banner
+  const altezza = () => { const e = document.getElementById('consenso'); if (e) document.documentElement.style.setProperty('--alto-consenso', e.hidden ? '0px' : e.offsetHeight + 'px'); };
+  const mostra = v => { const e = document.getElementById('consenso'); if (e) e.hidden = !v; altezza(); };
+  window.addEventListener('resize', altezza);
+  // dopo la scelta il banner si chiude con il fuoco dentro: il fuoco va al primo comando dopo il banner nella pagina o, se
+  // non ce n'è (o se il banner era stato aperto con «Cambia»), al pulsante «Cambia» del piè di pagina
+  const comandi = 'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])';
+  const dopoIlBanner = e => [...document.querySelectorAll(comandi)].find(x => !e.contains(x) && (e.compareDocumentPosition(x) & Node.DOCUMENT_POSITION_FOLLOWING) && x.offsetParent !== null);
+  let apertoDaCambia = false;
   const stato = () => { const e = document.getElementById('consenso-stato'); if (e) e.textContent = leggi() === 'si' ? 'attiva' : 'non attiva'; };
   function scelta(v) { scrivi(v); if (v === 'si') accendi(); else spegni(); mostra(false); stato(); }
 
   document.addEventListener('click', ev => {
     const b = ev.target.closest('[data-consenso]');
     if (!b) return;
-    if (b.dataset.consenso === 'cambia') mostra(true); else scelta(b.dataset.consenso);
+    // il fuoco si sposta solo con la tastiera (un clic del mouse ha detail ≥ 1): col mouse la pagina non deve scorrere
+    const e = document.getElementById('consenso'), tastiera = ev.detail === 0;
+    if (b.dataset.consenso === 'cambia') {
+      mostra(true); apertoDaCambia = true;
+      if (tastiera && e) e.querySelector('[data-consenso="no"]')?.focus();
+    } else {
+      scelta(b.dataset.consenso);
+      if (tastiera && e) ((!apertoDaCambia && dopoIlBanner(e)) || document.querySelector('[data-consenso="cambia"]'))?.focus();
+      apertoDaCambia = false;
+    }
   });
   stato();
   // il banner resta finché una scelta non c'è; chi ha già risposto non lo rivede: un avviso che torna a ogni visita

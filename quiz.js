@@ -571,7 +571,7 @@ function schermataSituazione(k) {
   const istr = b == null ? 'Tocca l’attività che ti attira <b>di più</b>. Se nessuna ti attira davvero, dillo qui sotto.' : w == null ? 'Ora tocca quella che ti attira <b>di meno</b>.' : 'Fatto. Puoi cambiare idea toccando di nuovo un’attività.';
   return `<div class="colonna quiz">${barraQuiz(k)}
     <h1 class="quiz-domanda" tabindex="-1">${esc(sit.d)}</h1>
-    <p class="quiz-istruzione" aria-live="polite">${istr}</p>
+    <p class="quiz-istruzione">${istr}</p>
     <div class="opzioni">${Q.ordine[k].map(i => {
       const st = i === b ? 'piu' : i === w ? 'meno' : '';
       return `<button type="button" class="opzione" data-q="opz" data-i="${i}"${st ? ` data-stato="${st}"` : ''}><span>${esc(sit.o[i][0])}</span>${st === 'piu' ? `<span class="segno">${SEGNO_PIU}Di più</span>` : st === 'meno' ? `<span class="segno">${SEGNO_MENO}Di meno</span>` : ''}</button>`;
@@ -585,7 +585,7 @@ function schermataScelta(dom, campo, p) {
   return `<div class="colonna quiz">${barraQuiz(p)}
     <h1 class="quiz-domanda" tabindex="-1">${esc(dom.d)}</h1>
     <p class="quiz-istruzione">Scegline una.</p>
-    <div class="opzioni">${ordine.map(i => `<button type="button" class="opzione" data-q="${campo}" data-i="${i}"${Q[campo] === i ? ' data-stato="scelta"' : ''}><span>${esc(dom.o[i][0])}</span></button>`).join('')}</div>
+    <div class="opzioni">${ordine.map(i => `<button type="button" class="opzione" data-q="${campo}" data-i="${i}" aria-pressed="${Q[campo] === i}"${Q[campo] === i ? ' data-stato="scelta"' : ''}><span>${esc(dom.o[i][0])}</span></button>`).join('')}</div>
     ${navQuiz(Q[campo] != null)}
   </div>`;
 }
@@ -672,7 +672,7 @@ function vistaProfilo(codice) {
     ? `<p class="nota-pari"><b>Le prime ${NUMERI[testa] || fmt(testa)} sono alla pari:</b> basterebbe togliere una sola delle tue risposte per cambiare il loro ordine. Guardale tutte allo stesso modo.</p>`
     : `<p class="nota-pari"><b>La prima si stacca dalle altre</b> più di quanto cambierebbe il risultato togliendo una sola delle tue risposte.</p>`;
   return `<div class="colonna pagina-profilo">
-    <nav class="briciole" aria-label="Percorso"><a href="#quiz">Quiz</a><span>/</span><span>Il tuo profilo</span></nav>
+    <nav class="briciole" aria-label="Percorso"><a href="#quiz">Quiz</a><span aria-hidden="true">/</span><span>Il tuo profilo</span></nav>
     <header class="profilo-testa">
       <p class="eyebrow-profilo">Il tuo profilo</p>
       <h1 tabindex="-1">${titolo}</h1>
@@ -925,9 +925,14 @@ function schedaLaurea(v, posizione, R, r) {
 /* ---------- eventi ---------- */
 function mostraQuiz(nuovaSchermata = true, fuoco = null) {
   if (rotta().nome !== 'quiz') return;
+  const istruzione = () => ($('#app .quiz-istruzione')?.textContent || '').trim(), prima = istruzione();
   try { $('#app').innerHTML = vistaQuiz(); } catch (e) { return mostraErrore(e); }
   if (nuovaSchermata) { window.scrollTo(0, 0); const h = $('#app h1'); if (h) h.focus({ preventScroll: true }); }
-  else if (fuoco) { const el = $(fuoco); if (el) el.focus({ preventScroll: true }); }
+  else {
+    if (fuoco) { const el = $(fuoco); if (el) el.focus({ preventScroll: true }); }
+    // nella stessa schermata l'istruzione cambia («Ora tocca quella che ti attira di meno»): la si annuncia (annuncia, in app.js)
+    const dopo = istruzione(); if (dopo && dopo !== prima) annuncia(dopo);
+  }
 }
 function passa(n) {
   try { passaA(n); } catch (e) { mostraErrore(e); }

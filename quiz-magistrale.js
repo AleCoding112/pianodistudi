@@ -371,7 +371,7 @@ function schermataDirezione() {
   const serveArea = QM.dir === 2 && !QM.aree.length;
   return `<div class="colonna quiz">${barraMag(2)}
     <h1 class="quiz-domanda" tabindex="-1">Cosa cerchi nella magistrale?</h1>
-    <div class="opzioni direzioni">${DIREZIONI.map((x, i) => `<button type="button" class="opzione" data-m="dir" data-i="${i}"${QM.dir === i ? ' data-stato="scelta"' : ''}><span><b>${x.d}</b><br>${esc(x.t)}</span></button>`).join('')}</div>
+    <div class="opzioni direzioni">${DIREZIONI.map((x, i) => `<button type="button" class="opzione" data-m="dir" data-i="${i}" aria-pressed="${QM.dir === i}"${QM.dir === i ? ' data-stato="scelta"' : ''}><span><b>${x.d}</b><br>${esc(x.t)}</span></button>`).join('')}</div>
     <fieldset class="cond aree-nuove"><legend>C’è qualcosa che nella triennale non hai studiato, o poco, e che ti attira? ${QM.dir === 2 ? '' : '<span class="tenue">(se vuoi)</span>'}</legend>
       <p class="tenue piccolo">Fino a ${MAX_AREE}. Il quiz sa cosa ti è piaciuto fra le materie che hai fatto, non fra quelle che non hai mai provato: questo glielo dici tu.</p>
       ${FAMIGLIE.map(f => `<div class="famiglia-aree"><span class="tenue piccolo">${esc(f.nome)}</span><div class="scelte">${f.ambiti.map(a =>
@@ -476,6 +476,15 @@ function mostraMag(nuovaSchermata = true, fuoco = null) {
   if (nuovaSchermata) { window.scrollTo(0, 0); const h = $('#app h1'); if (h) h.focus({ preventScroll: true }); }
   else if (fuoco) { const el = $(fuoco); if (el) el.focus({ preventScroll: true }); }
 }
+// dopo la scelta della triennale la riga premuta sparisce con il ridisegno: il fuoco va al passo successivo (il percorso
+// scelto, «Avanti» o «Cambia»), oppure all'avviso quando del corso non abbiamo il piano
+function fuocoTriennale() {
+  if (rotta().nome !== 'magistrale') return;
+  const el = $('#app [data-m="curr"][aria-pressed="true"]') || $('#app [data-m="avanti"]') || $('#app [data-m="cambia-triennale"]') || $('#app .quiz .nota.avviso');
+  if (!el) return;
+  if (!el.matches('button, a, input')) el.tabIndex = -1;
+  el.focus();
+}
 async function passaMag(n) {
   try { await passaMagA(n); } catch (e) { mostraErrore(e); }
 }
@@ -518,7 +527,7 @@ function clicMag(ev) {
   }
   else if (a === 'avanti') passaMag(QM.passo + 1);
   else if (a === 'vai') { QM.fatto = false; QM.passo = i; salva('quizMag', QM); mostraMag(); }
-  else if (a === 'triennale') { QM.i = i; QM.curr = 0; QM.voti = {}; QM.liberi = []; rifaiAssaggi(); salva('quizMag', QM); triennaleValida(i) ? pianiDi(S.corsi[i].ateneo).then(() => mostraMag(false)).catch(mostraErrore) : mostraMag(false); }
+  else if (a === 'triennale') { QM.i = i; QM.curr = 0; QM.voti = {}; QM.liberi = []; rifaiAssaggi(); salva('quizMag', QM); triennaleValida(i) ? pianiDi(S.corsi[i].ateneo).then(() => { mostraMag(false); fuocoTriennale(); }).catch(mostraErrore) : (mostraMag(false), fuocoTriennale()); }
   else if (a === 'cambia-triennale') { QM.i = null; QM.voti = {}; QM.liberi = []; rifaiAssaggi(); salva('quizMag', QM); mostraMag(false); const c = $('#mag-cerca'); if (c) c.focus(); }
   else if (a === 'curr') { if (QM.curr !== i) { QM.curr = i; QM.voti = {}; QM.liberi = []; rifaiAssaggi(); } salva('quizMag', QM); mostraMag(false, `[data-m="curr"][data-i="${i}"]`); }
   else if (a === 'voto') {
@@ -529,7 +538,9 @@ function clicMag(ev) {
     const li = b.closest('li'); li.dataset.voto = QM.voti[k] ?? '';
     li.querySelectorAll('[data-m="voto"]').forEach(x => x.setAttribute('aria-pressed', String(QM.voti[k] === +x.dataset.v)));
     const segnati = Object.values(QM.voti).filter(x => x !== 0).length, nav = $('#app .quiz-nav');
-    if (nav) nav.outerHTML = navMag(segnati >= MIN_SEGNATI, 'Avanti', segnati >= MIN_SEGNATI ? `${segnati} esami segnati` : `Segna almeno ${MIN_SEGNATI} esami (finora ${segnati})`);
+    const nota = segnati >= MIN_SEGNATI ? `${segnati} esami segnati` : `Segna almeno ${MIN_SEGNATI} esami (finora ${segnati})`;
+    if (nav) nav.outerHTML = navMag(segnati >= MIN_SEGNATI, 'Avanti', nota);
+    annuncia(nota);   // la nota in fondo cambia a ogni voto: la regione viva fissa la fa sentire (annuncia, in app.js)
   }
   else if (a === 'libero-aggiungi' || a === 'libero-togli') {
     const k = +b.dataset.k, l = QM.liberi || [];
@@ -551,6 +562,10 @@ function clicMag(ev) {
   }
   else if (a === 'cond') { QM.cond[b.dataset.k] = +b.dataset.v; rifaiAssaggi(); salva('quizMag', QM); mostraMag(false, `[data-m="cond"][data-k="${b.dataset.k}"][data-v="${b.dataset.v}"]`); }
   else if (a === 'assaggio') { QM.assaggi[QM.passo - 4] = i === 9 ? null : i; passaMag(QM.passo + 1); }
-  else if (a === 'altre') { QM.mostrati += 10; salva('quizMag', QM); mostraMag(false); }
+  else if (a === 'altre') {
+    // il pulsante sparisce con il ridisegno: il fuoco va alla prima delle magistrali appena comparse
+    const n = QM.mostrati; QM.mostrati += 10; salva('quizMag', QM);
+    mostraMag(false, `.risultato-mag .elenco > :nth-child(${n + 1})`);
+  }
   else if (a === 'confronta') { S.confronto = calcolaMag(QM).lista.slice(0, 3).map(x => x.c.i); salva('confronto', S.confronto); vai('#confronta'); }
 }
