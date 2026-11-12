@@ -800,7 +800,12 @@ function htmlPiano(c, p, tabella) {
     else if (senzaCrediti) conti = `I crediti indicati qui arrivano a ${fmt(totMax)} su ${fmt(pieno)}: il resto si sceglie nei gruppi per cui l’ateneo non indica quanti crediti servono (li trovi nel regolamento del corso).`;
     else conti = `I crediti indicati qui arrivano a ${fmt(totMax)} su ${fmt(pieno)}: una parte del piano (spesso le attività a scelta libera) l’ateneo non la descrive qui. Controlla sul sito del corso.`;
   }
+  // un curriculum che la fonte pubblica in parte, con gli anni che mancano su un'altra pagina dell'ateneo (p.np, da
+  // pulisci-catalogo.py PERCORSI_ALTROVE): si dice dove sono, invece di far credere che l'ateneo non li abbia pubblicati
+  // (Kore LM87_R, riverifica del 12/11/2026)
+  const altrove = (p.np || {})[nomeP];
   const parziale = !mancanti.length ? ''
+    : altrove ? `<p class="nota avviso">${esc(altrove[0])} <a href="${esc(altrove[1])}" target="_blank" rel="noopener">${esc(altrove[2])}${NUOVA} ↗</a>.</p>`
     : mancanti.every(n => n > ultimo)
       ? `<p class="nota avviso">Qui ${ultimo === 1 ? 'c’è solo il 1° anno' : `ci sono solo i primi ${ultimo} anni`}: per ora il catalogo dell’ateneo pubblica solo questi. Il piano completo è nel regolamento del corso.</p>`
       : `<p class="nota avviso">Qui manca${mancanti.length > 1 ? 'no' : ''} ${mancanti.map(n => `il ${n}° anno`).join(' e ')}: il catalogo dell’ateneo non ${mancanti.length > 1 ? 'li' : 'lo'} pubblica. Il piano completo è nel regolamento del corso.</p>`;
